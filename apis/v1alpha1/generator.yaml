@@ -1,9 +1,10 @@
 ignore:
-  field_paths: null
+  field_paths:
+  - CreateHostedZoneInput.CallerReference
   operations: null
   resource_names:
   - HealthCheck
-  - HostedZone
+  # - HostedZone
   - KeySigningKey
   - QueryLoggingConfig
   - ReusableDelegationSet
@@ -13,6 +14,20 @@ ignore:
   - VPCAssociationAuthorization
   shape_names: null
 model_name: route53
-operations: {}
+operations:
+  CreateHostedZone:
+    output_wrapper_field_path: HostedZone
+  GetHostedZone:
+    output_wrapper_field_path: HostedZone
 prefix_config: {}
-resources: {}
+resources:
+  HostedZone:
+    exceptions:
+      terminal_codes:
+      - DelegationSetNotReusable
+      - InvalidDomainName
+      - InvalidInput
+      - InvalidVPCId
+    hooks:
+      sdk_create_post_build_request:
+        template_path: hooks/hosted_zone/sdk_create_post_build_request.go.tpl

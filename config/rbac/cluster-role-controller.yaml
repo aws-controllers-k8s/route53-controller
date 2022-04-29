@@ -33,6 +33,26 @@ rules:
   - patch
   - watch
 - apiGroups:
+  - route53.services.k8s.aws
+  resources:
+  - hostedzones
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - route53.services.k8s.aws
+  resources:
+  - hostedzones/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - services.k8s.aws
   resources:
   - adoptedresources

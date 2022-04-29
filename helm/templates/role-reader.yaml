@@ -9,6 +9,7 @@ rules:
 - apiGroups:
   - route53.services.k8s.aws
   resources:
+  - hostedzones
   verbs:
   - get
   - list
