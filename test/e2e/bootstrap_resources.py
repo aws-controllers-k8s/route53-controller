@@ -17,11 +17,12 @@ for them.
 
 from dataclasses import dataclass
 from acktest.bootstrapping import Resources
+from acktest.bootstrapping.vpc import VPC
 from e2e import bootstrap_directory
 
 @dataclass
 class BootstrapResources(Resources):
-    pass
+    HostedZoneVPC: VPC
 
 _bootstrap_resources = None
 
