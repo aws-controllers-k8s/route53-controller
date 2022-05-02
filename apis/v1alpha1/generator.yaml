@@ -1,0 +1,18 @@
+ignore:
+  field_paths: null
+  operations: null
+  resource_names:
+  - HealthCheck
+  - HostedZone
+  - KeySigningKey
+  - QueryLoggingConfig
+  - ReusableDelegationSet
+  - TrafficPolicy
+  - TrafficPolicyInstance
+  - TrafficPolicyVersion
+  - VPCAssociationAuthorization
+  shape_names: null
+model_name: route53
+operations: {}
+prefix_config: {}
+resources: {}

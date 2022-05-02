@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ack-route53-controller-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ack-route53-controller
+subjects:
+- kind: ServiceAccount
+  name: ack-route53-controller
+  namespace: ack-system
