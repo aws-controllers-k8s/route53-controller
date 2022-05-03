@@ -3,4 +3,4 @@
     // example, a date/timestamp.
     // TODO: Name is not sufficient, since a failed request cannot be retried.
     // We might need to import the `time` package into `sdk.go`
-    input.SetCallerReference(*desired.ko.Spec.Name)
+    input.SetCallerReference(getCallerReference(desired.ko))
