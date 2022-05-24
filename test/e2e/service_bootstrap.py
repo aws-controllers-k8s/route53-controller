@@ -15,6 +15,7 @@
 import logging
 
 from acktest.bootstrapping import Resources, BootstrapFailureException
+from acktest.bootstrapping.vpc import VPC
 from e2e import bootstrap_directory
 from e2e.bootstrap_resources import BootstrapResources
 
@@ -22,6 +23,7 @@ def service_bootstrap() -> Resources:
     logging.getLogger().setLevel(logging.INFO)
     
     resources = BootstrapResources(
+        HostedZoneVPC=VPC("hosted-zone-vpc", num_public_subnet=2, num_private_subnet=2)
     )
 
     try:

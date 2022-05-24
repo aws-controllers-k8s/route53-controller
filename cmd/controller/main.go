@@ -33,6 +33,8 @@ import (
 	svctypes "github.com/aws-controllers-k8s/route53-controller/apis/v1alpha1"
 	svcresource "github.com/aws-controllers-k8s/route53-controller/pkg/resource"
 
+	_ "github.com/aws-controllers-k8s/route53-controller/pkg/resource/hosted_zone"
+
 	"github.com/aws-controllers-k8s/route53-controller/pkg/version"
 )
 

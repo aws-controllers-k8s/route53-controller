@@ -3,3 +3,4 @@ kind: Kustomization
 bases:
   - common
 resources:
+  - bases/route53.services.k8s.aws_hostedzones.yaml
