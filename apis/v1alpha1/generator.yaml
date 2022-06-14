@@ -31,3 +31,5 @@ resources:
     hooks:
       sdk_create_post_build_request:
         template_path: hooks/hosted_zone/sdk_create_post_build_request.go.tpl
+    tags:
+      ignore: true
