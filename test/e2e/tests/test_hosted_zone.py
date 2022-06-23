@@ -24,7 +24,7 @@ import pytest
 from acktest.k8s import resource as k8s
 from acktest.k8s import condition
 from acktest.resources import random_suffix_name
-from e2e import service_marker, CRD_GROUP, CRD_VERSION, load_eks_resource
+from e2e import service_marker, CRD_GROUP, CRD_VERSION, load_route53_resource
 from e2e.replacement_values import REPLACEMENT_VALUES
 from e2e.bootstrap_resources import get_bootstrap_resources
 
@@ -44,7 +44,7 @@ def public_hosted_zone():
     replacements["ZONE_NAME"] = zone_name
     replacements["ZONE_DOMAIN"] = f"{zone_name}.ack.example.com."
 
-    resource_data = load_eks_resource(
+    resource_data = load_route53_resource(
         "hosted_zone_public",
         additional_replacements=replacements,
     )
@@ -79,7 +79,7 @@ def private_hosted_zone():
     replacements["ZONE_DOMAIN"] = f"{zone_name}.ack.example.com."
     replacements["VPC_ID"] = get_bootstrap_resources().HostedZoneVPC.vpc_id
 
-    resource_data = load_eks_resource(
+    resource_data = load_route53_resource(
         "hosted_zone_private",
         additional_replacements=replacements,
     )

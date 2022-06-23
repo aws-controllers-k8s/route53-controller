@@ -8,7 +8,7 @@ ignore:
   - KeySigningKey
   - QueryLoggingConfig
   - ReusableDelegationSet
-  - TrafficPolicy
+  # - TrafficPolicy
   - TrafficPolicyInstance
   - TrafficPolicyVersion
   - VPCAssociationAuthorization
@@ -19,6 +19,12 @@ operations:
     output_wrapper_field_path: HostedZone
   GetHostedZone:
     output_wrapper_field_path: HostedZone
+  CreateTrafficPolicy:
+    output_wrapper_field_path: TrafficPolicy
+  CreateTrafficPolicyVersion:
+    operation_type: Update
+    resource_name: TrafficPolicy
+    output_wrapper_field_path: TrafficPolicy
 prefix_config: {}
 resources:
   HostedZone:
@@ -31,5 +37,18 @@ resources:
     hooks:
       sdk_create_post_build_request:
         template_path: hooks/hosted_zone/sdk_create_post_build_request.go.tpl
+    tags:
+      ignore: true
+  TrafficPolicy:
+    exceptions:
+      errors:
+        404:
+          code: TrafficPolicyAlreadyExists
+      terminal_codes:
+      - InvalidInput
+      - InvalidTrafficPolicyDocument
+    fields:
+      ID:
+        is_read_only: true
     tags:
       ignore: true

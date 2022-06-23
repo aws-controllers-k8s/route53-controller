@@ -10,6 +10,7 @@ rules:
   - route53.services.k8s.aws
   resources:
   - hostedzones
+  - trafficpolicies
   verbs:
   - get
   - list
