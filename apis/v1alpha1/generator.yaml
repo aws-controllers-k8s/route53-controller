@@ -25,9 +25,6 @@ operations:
     operation_type: Update
     resource_name: TrafficPolicy
     output_wrapper_field_path: TrafficPolicy
-  ListTrafficPolicyVersions:
-    operation_type: List
-    resource_name: TrafficPolicy
 prefix_config: {}
 resources:
   HostedZone:
