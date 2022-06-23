@@ -1,0 +1,18 @@
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: TrafficPolicy
+metadata:
+  name: $TRAFFIC_POLICY_NAME
+spec:
+  name: $TRAFFIC_POLICY_NAME
+  document: >
+    {
+      "AWSPolicyFormatVersion": "2015-10-01",
+      "RecordType": "TXT",
+      "Endpoints": {
+        "endpoint-start": {
+          "Type": "value",
+          "Value": "\"test\""
+        }
+      },
+      "StartEndpoint": "endpoint-start"
+    }

@@ -139,6 +139,7 @@ type QueryLoggingConfig struct {
 // Information about the resource record set to create or delete.
 type ResourceRecordSet struct {
 	Name *string `json:"name,omitempty"`
+	Type *string `json:"type_,omitempty"`
 }
 
 // A complex type that contains the status that one Amazon Route 53 health checker
@@ -149,8 +150,31 @@ type StatusReport struct {
 
 // A complex type that contains settings for the new traffic policy instance.
 type TrafficPolicyInstance struct {
-	HostedZoneID *string `json:"hostedZoneID,omitempty"`
-	Name         *string `json:"name,omitempty"`
+	HostedZoneID         *string `json:"hostedZoneID,omitempty"`
+	Name                 *string `json:"name,omitempty"`
+	TrafficPolicyID      *string `json:"trafficPolicyID,omitempty"`
+	TrafficPolicyType    *string `json:"trafficPolicyType,omitempty"`
+	TrafficPolicyVersion *int64  `json:"trafficPolicyVersion,omitempty"`
+}
+
+// A complex type that contains information about the latest version of one
+// traffic policy that is associated with the current Amazon Web Services account.
+type TrafficPolicySummary struct {
+	ID                 *string `json:"id,omitempty"`
+	LatestVersion      *int64  `json:"latestVersion,omitempty"`
+	Name               *string `json:"name,omitempty"`
+	TrafficPolicyCount *int64  `json:"trafficPolicyCount,omitempty"`
+	Type               *string `json:"type_,omitempty"`
+}
+
+// A complex type that contains settings for a traffic policy.
+type TrafficPolicy_SDK struct {
+	Comment  *string `json:"comment,omitempty"`
+	Document *string `json:"document,omitempty"`
+	ID       *string `json:"id,omitempty"`
+	Name     *string `json:"name,omitempty"`
+	Type     *string `json:"type_,omitempty"`
+	Version  *int64  `json:"version,omitempty"`
 }
 
 // (Private hosted zones only) A complex type that contains information about
