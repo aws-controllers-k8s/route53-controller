@@ -25,6 +25,13 @@ const (
 	AccountLimitType_MAX_TRAFFIC_POLICIES_BY_OWNER         AccountLimitType = "MAX_TRAFFIC_POLICIES_BY_OWNER"
 )
 
+type CIDRCollectionChangeAction string
+
+const (
+	CIDRCollectionChangeAction_PUT              CIDRCollectionChangeAction = "PUT"
+	CIDRCollectionChangeAction_DELETE_IF_EXISTS CIDRCollectionChangeAction = "DELETE_IF_EXISTS"
+)
+
 type ChangeAction string
 
 const (
@@ -57,6 +64,7 @@ const (
 	CloudWatchRegion_ap_south_1     CloudWatchRegion = "ap-south-1"
 	CloudWatchRegion_ap_southeast_1 CloudWatchRegion = "ap-southeast-1"
 	CloudWatchRegion_ap_southeast_2 CloudWatchRegion = "ap-southeast-2"
+	CloudWatchRegion_ap_southeast_3 CloudWatchRegion = "ap-southeast-3"
 	CloudWatchRegion_ap_northeast_1 CloudWatchRegion = "ap-northeast-1"
 	CloudWatchRegion_ap_northeast_2 CloudWatchRegion = "ap-northeast-2"
 	CloudWatchRegion_ap_northeast_3 CloudWatchRegion = "ap-northeast-3"
@@ -69,6 +77,7 @@ const (
 	CloudWatchRegion_us_gov_west_1  CloudWatchRegion = "us-gov-west-1"
 	CloudWatchRegion_us_gov_east_1  CloudWatchRegion = "us-gov-east-1"
 	CloudWatchRegion_us_iso_east_1  CloudWatchRegion = "us-iso-east-1"
+	CloudWatchRegion_us_iso_west_1  CloudWatchRegion = "us-iso-west-1"
 	CloudWatchRegion_us_isob_east_1 CloudWatchRegion = "us-isob-east-1"
 )
 
@@ -170,6 +179,7 @@ const (
 	ResourceRecordSetRegion_eu_central_1   ResourceRecordSetRegion = "eu-central-1"
 	ResourceRecordSetRegion_ap_southeast_1 ResourceRecordSetRegion = "ap-southeast-1"
 	ResourceRecordSetRegion_ap_southeast_2 ResourceRecordSetRegion = "ap-southeast-2"
+	ResourceRecordSetRegion_ap_southeast_3 ResourceRecordSetRegion = "ap-southeast-3"
 	ResourceRecordSetRegion_ap_northeast_1 ResourceRecordSetRegion = "ap-northeast-1"
 	ResourceRecordSetRegion_ap_northeast_2 ResourceRecordSetRegion = "ap-northeast-2"
 	ResourceRecordSetRegion_ap_northeast_3 ResourceRecordSetRegion = "ap-northeast-3"
@@ -223,9 +233,11 @@ const (
 	VPCRegion_us_gov_west_1  VPCRegion = "us-gov-west-1"
 	VPCRegion_us_gov_east_1  VPCRegion = "us-gov-east-1"
 	VPCRegion_us_iso_east_1  VPCRegion = "us-iso-east-1"
+	VPCRegion_us_iso_west_1  VPCRegion = "us-iso-west-1"
 	VPCRegion_us_isob_east_1 VPCRegion = "us-isob-east-1"
 	VPCRegion_ap_southeast_1 VPCRegion = "ap-southeast-1"
 	VPCRegion_ap_southeast_2 VPCRegion = "ap-southeast-2"
+	VPCRegion_ap_southeast_3 VPCRegion = "ap-southeast-3"
 	VPCRegion_ap_south_1     VPCRegion = "ap-south-1"
 	VPCRegion_ap_northeast_1 VPCRegion = "ap-northeast-1"
 	VPCRegion_ap_northeast_2 VPCRegion = "ap-northeast-2"
