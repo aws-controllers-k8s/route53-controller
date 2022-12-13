@@ -12,6 +12,7 @@ ignore:
   - TrafficPolicyInstance
   - TrafficPolicyVersion
   - VPCAssociationAuthorization
+  - CidrCollection
   shape_names: null
 model_name: route53
 operations:
