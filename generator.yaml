@@ -3,6 +3,7 @@ ignore:
   - CreateHostedZoneInput.CallerReference
   operations: null
   resource_names:
+  - CidrCollection
   - HealthCheck
   # - HostedZone
   - KeySigningKey
