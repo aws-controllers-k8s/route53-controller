@@ -24,6 +24,7 @@ import (
 //
 // A complex type that contains general information about the hosted zone.
 type HostedZoneSpec struct {
+
 	// If you want to associate a reusable delegation set with this hosted zone,
 	// the ID that Amazon Route 53 assigned to the reusable delegation set when
 	// you created it. For more information about reusable delegation sets, see
