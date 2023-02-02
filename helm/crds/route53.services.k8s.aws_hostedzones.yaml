@@ -45,8 +45,8 @@ spec:
                 type: string
               hostedZoneConfig:
                 description: "(Optional) A complex type that contains the following
-                  optional values: \n * For public and private hosted zones, an optional
-                  comment \n * For private hosted zones, an optional PrivateZone element
+                  optional values: \n - For public and private hosted zones, an optional
+                  comment \n - For private hosted zones, an optional PrivateZone element
                   \n If you don't specify a comment or the PrivateZone element, omit
                   HostedZoneConfig and the other elements."
                 properties:

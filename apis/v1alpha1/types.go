@@ -34,8 +34,8 @@ var (
 //
 // When creating resource record sets for a private hosted zone, note the following:
 //
-//    * For information about creating failover resource record sets in a private
-//    hosted zone, see Configuring Failover in a Private Hosted Zone (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-private-hosted-zones.html).
+//   - For information about creating failover resource record sets in a private
+//     hosted zone, see Configuring Failover in a Private Hosted Zone (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-private-hosted-zones.html).
 type AliasTarget struct {
 	DNSName      *string `json:"dnsName,omitempty"`
 	HostedZoneID *string `json:"hostedZoneID,omitempty"`
