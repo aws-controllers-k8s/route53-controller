@@ -32,9 +32,9 @@ type HostedZoneSpec struct {
 	DelegationSetID *string `json:"delegationSetID,omitempty"`
 	// (Optional) A complex type that contains the following optional values:
 	//
-	//    * For public and private hosted zones, an optional comment
+	//   - For public and private hosted zones, an optional comment
 	//
-	//    * For private hosted zones, an optional PrivateZone element
+	//   - For private hosted zones, an optional PrivateZone element
 	//
 	// If you don't specify a comment or the PrivateZone element, omit HostedZoneConfig
 	// and the other elements.
