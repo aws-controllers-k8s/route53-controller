@@ -77,6 +77,9 @@ func (rm *resourceManager) sdkFind(
 	resp, err = rm.sdkapi.GetHostedZoneWithContext(ctx, input)
 	rm.metrics.RecordAPICall("READ_ONE", "GetHostedZone", err)
 	if err != nil {
+		if reqErr, ok := ackerr.AWSRequestFailure(err); ok && reqErr.StatusCode() == 404 {
+			return nil, ackerr.NotFound
+		}
 		if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "NoSuchHostedZone" {
 			return nil, ackerr.NotFound
 		}
