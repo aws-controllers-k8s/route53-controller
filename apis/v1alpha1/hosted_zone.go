@@ -24,6 +24,7 @@ import (
 //
 // A complex type that contains general information about the hosted zone.
 type HostedZoneSpec struct {
+
 	// If you want to associate a reusable delegation set with this hosted zone,
 	// the ID that Amazon Route 53 assigned to the reusable delegation set when
 	// you created it. For more information about reusable delegation sets, see
@@ -31,9 +32,9 @@ type HostedZoneSpec struct {
 	DelegationSetID *string `json:"delegationSetID,omitempty"`
 	// (Optional) A complex type that contains the following optional values:
 	//
-	//    * For public and private hosted zones, an optional comment
+	//   - For public and private hosted zones, an optional comment
 	//
-	//    * For private hosted zones, an optional PrivateZone element
+	//   - For private hosted zones, an optional PrivateZone element
 	//
 	// If you don't specify a comment or the PrivateZone element, omit HostedZoneConfig
 	// and the other elements.
@@ -53,6 +54,9 @@ type HostedZoneSpec struct {
 	// the Amazon VPC that you're associating with this hosted zone.
 	//
 	// You can specify only one Amazon VPC when you create a private hosted zone.
+	// If you are associating a VPC with a hosted zone with this request, the paramaters
+	// VPCId and VPCRegion are also required.
+	//
 	// To associate additional Amazon VPCs with the hosted zone, use AssociateVPCWithHostedZone
 	// (https://docs.aws.amazon.com/Route53/latest/APIReference/API_AssociateVPCWithHostedZone.html)
 	// after you create a hosted zone.

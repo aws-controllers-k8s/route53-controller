@@ -18,6 +18,7 @@ package hosted_zone
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -25,6 +26,7 @@ import (
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
 	ackcondition "github.com/aws-controllers-k8s/runtime/pkg/condition"
 	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
+	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
 	"github.com/aws/aws-sdk-go/aws"
 	svcsdk "github.com/aws/aws-sdk-go/service/route53"
@@ -45,6 +47,8 @@ var (
 	_ = &ackerr.NotFound
 	_ = &ackcondition.NotManagedMessage
 	_ = &reflect.Value{}
+	_ = fmt.Sprintf("")
+	_ = &ackrequeue.NoRequeue{}
 )
 
 // sdkFind returns SDK-specific information about a supplied resource
@@ -73,6 +77,9 @@ func (rm *resourceManager) sdkFind(
 	resp, err = rm.sdkapi.GetHostedZoneWithContext(ctx, input)
 	rm.metrics.RecordAPICall("READ_ONE", "GetHostedZone", err)
 	if err != nil {
+		if reqErr, ok := ackerr.AWSRequestFailure(err); ok && reqErr.StatusCode() == 404 {
+			return nil, ackerr.NotFound
+		}
 		if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "NoSuchHostedZone" {
 			return nil, ackerr.NotFound
 		}
@@ -285,8 +292,7 @@ func (rm *resourceManager) sdkUpdate(
 	latest *resource,
 	delta *ackcompare.Delta,
 ) (*resource, error) {
-	// TODO(jaypipes): Figure this out...
-	return nil, ackerr.NotImplemented
+	return nil, ackerr.NewTerminalError(ackerr.NotImplemented)
 }
 
 // sdkDelete deletes the supplied resource in the backend AWS service API

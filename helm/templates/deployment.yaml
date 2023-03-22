@@ -10,7 +10,6 @@ metadata:
     app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
     k8s-app: {{ include "app.name" . }}
     helm.sh/chart: {{ include "chart.name-version" . }}
-    control-plane: controller
 spec:
   replicas: 1
   selector:
@@ -55,6 +54,16 @@ spec:
         - "$(ACK_RESOURCE_TAGS)"
         - --watch-namespace
         - "$(ACK_WATCH_NAMESPACE)"
+        - --deletion-policy
+        - "$(DELETION_POLICY)"
+{{- if gt .Values.reconcile.defaultResyncPeriod 0.0 }}
+        - --reconcile-default-resync-seconds
+        - "$(RECONCILE_DEFAULT_RESYNC_SECONDS)"
+{{- end }}
+{{- range $key, $value := .Values.reconcile.resourceResyncPeriods }}
+        - --reconcile-resource-resync-seconds
+        - "$(RECONCILE_RESOURCE_RESYNC_SECONDS_{{ $key | upper }})"
+{{- end }}
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         name: controller
@@ -74,12 +83,22 @@ spec:
           value: {{ .Values.aws.endpoint_url | quote }}
         - name: ACK_WATCH_NAMESPACE
           value: {{ include "watch-namespace" . }}
+        - name: DELETION_POLICY
+          value: {{ .Values.deletionPolicy }}
         - name: ACK_ENABLE_DEVELOPMENT_LOGGING
           value: {{ .Values.log.enable_development_logging | quote }}
         - name: ACK_LOG_LEVEL
           value: {{ .Values.log.level | quote }}
         - name: ACK_RESOURCE_TAGS
           value: {{ join "," .Values.resourceTags | quote }}
+{{- if gt .Values.reconcile.defaultResyncPeriod 0.0 }}
+        - name: RECONCILE_DEFAULT_RESYNC_SECONDS
+          value: {{ .Values.reconcile.defaultResyncPeriod | quote }}
+{{- end }}
+{{- range $key, $value := .Values.reconcile.resourceResyncPeriods }}
+        - name: RECONCILE_RESOURCE_RESYNC_SECONDS_{{ $key | upper }}
+          value: {{ $key }}={{ $value }}
+{{- end }}
         {{- if .Values.aws.credentials.secretName }}
         - name: AWS_SHARED_CREDENTIALS_FILE
           value: {{ include "aws.credentials.path" . }}
@@ -89,7 +108,7 @@ spec:
           - name: {{ .Values.aws.credentials.secretName }}
             mountPath: {{ include "aws.credentials.secret_mount_path" . }}
             readOnly: true
-        {{- end }}          
+        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
           privileged: false
@@ -106,7 +125,7 @@ spec:
       affinity: {{ toYaml .Values.deployment.affinity | nindent 8 }}
       {{ end -}}
       {{ if .Values.deployment.priorityClassName -}}
-      priorityClassName: {{ .Values.deployment.priorityClassName -}}
+      priorityClassName: {{ .Values.deployment.priorityClassName }}
       {{ end -}}
       hostIPC: false
       hostNetwork: false

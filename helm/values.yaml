@@ -4,7 +4,7 @@
 
 image:
   repository: public.ecr.aws/aws-controllers-k8s/route53-controller
-  tag: v0.0.0-non-release-version
+  tag: v0.0.3
   pullPolicy: IfNotPresent
   pullSecrets: []
 
@@ -28,6 +28,10 @@ deployment:
   # Which priorityClassName to set?
   # See: https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/#pod-priority
   priorityClassName: ""
+
+# If "installScope: cluster" then these labels will be applied to ClusterRole
+role:
+ labels: {}
   
 metrics:
   service:
@@ -73,6 +77,18 @@ resourceTags:
   # resources that it manages.
   - services.k8s.aws/controller-version=%CONTROLLER_SERVICE%-%CONTROLLER_VERSION%
   - services.k8s.aws/namespace=%K8S_NAMESPACE%
+
+# Set to "retain" to keep all AWS resources intact even after the K8s resources
+# have been deleted. By default, the ACK controller will delete the AWS resource
+# before the K8s resource is removed.
+deletionPolicy: delete
+
+# controller reconciliation configurations
+reconcile:
+  # The default duration, in seconds, to wait before resyncing desired state of custom resources.
+  defaultResyncPeriod: 0
+  # An object representing the reconcile resync configuration for each specific resource.
+  resourceResyncPeriods: {}
 
 serviceAccount:
   # Specifies whether a service account should be created

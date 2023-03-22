@@ -34,11 +34,8 @@ var (
 //
 // When creating resource record sets for a private hosted zone, note the following:
 //
-//    * Creating geolocation alias resource record sets or latency alias resource
-//    record sets in a private hosted zone is unsupported.
-//
-//    * For information about creating failover resource record sets in a private
-//    hosted zone, see Configuring Failover in a Private Hosted Zone (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-private-hosted-zones.html).
+//   - For information about creating failover resource record sets in a private
+//     hosted zone, see Configuring Failover in a Private Hosted Zone (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-private-hosted-zones.html).
 type AliasTarget struct {
 	DNSName      *string `json:"dnsName,omitempty"`
 	HostedZoneID *string `json:"hostedZoneID,omitempty"`
@@ -179,6 +176,10 @@ type TrafficPolicy_SDK struct {
 
 // (Private hosted zones only) A complex type that contains information about
 // an Amazon VPC.
+//
+// If you associate a private hosted zone with an Amazon VPC when you make a
+// CreateHostedZone (https://docs.aws.amazon.com/Route53/latest/APIReference/API_CreateHostedZone.html)
+// request, the following parameters are also required.
 type VPC struct {
 	// (Private hosted zones only) The ID of an Amazon VPC.
 	VPCID     *string `json:"vpcID,omitempty"`

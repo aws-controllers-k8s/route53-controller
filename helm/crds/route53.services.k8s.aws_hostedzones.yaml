@@ -1,10 +1,9 @@
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
   name: hostedzones.route53.services.k8s.aws
 spec:
@@ -46,10 +45,10 @@ spec:
                 type: string
               hostedZoneConfig:
                 description: "(Optional) A complex type that contains the following
-                  optional values: \n    * For public and private hosted zones, an
-                  optional comment \n    * For private hosted zones, an optional PrivateZone
-                  element \n If you don't specify a comment or the PrivateZone element,
-                  omit HostedZoneConfig and the other elements."
+                  optional values: \n - For public and private hosted zones, an optional
+                  comment \n - For private hosted zones, an optional PrivateZone element
+                  \n If you don't specify a comment or the PrivateZone element, omit
+                  HostedZoneConfig and the other elements."
                 properties:
                   comment:
                     type: string
@@ -72,8 +71,10 @@ spec:
                 description: "(Private hosted zones only) A complex type that contains
                   information about the Amazon VPC that you're associating with this
                   hosted zone. \n You can specify only one Amazon VPC when you create
-                  a private hosted zone. To associate additional Amazon VPCs with
-                  the hosted zone, use AssociateVPCWithHostedZone (https://docs.aws.amazon.com/Route53/latest/APIReference/API_AssociateVPCWithHostedZone.html)
+                  a private hosted zone. If you are associating a VPC with a hosted
+                  zone with this request, the paramaters VPCId and VPCRegion are also
+                  required. \n To associate additional Amazon VPCs with the hosted
+                  zone, use AssociateVPCWithHostedZone (https://docs.aws.amazon.com/Route53/latest/APIReference/API_AssociateVPCWithHostedZone.html)
                   after you create a hosted zone."
                 properties:
                   vpcID:
@@ -188,9 +189,3 @@ spec:
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
