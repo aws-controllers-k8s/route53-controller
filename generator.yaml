@@ -30,8 +30,28 @@ resources:
       - InvalidDomainName
       - InvalidInput
       - InvalidVPCId
+    fields:
+      Tags:
+        from:
+          operation: ChangeTagsForResource
+          path: AddTags
+        compare:
+          is_ignored: True
     hooks:
+      delta_pre_compare:
+        code: compareTags(delta, a, b)
+      sdk_read_one_post_set_output:
+        template_path: hooks/hosted_zone/sdk_read_one_post_set_output.go.tpl
+      sdk_create_post_set_output:
+        template_path: hooks/hosted_zone/sdk_create_post_set_output.go.tpl
       sdk_create_post_build_request:
         template_path: hooks/hosted_zone/sdk_create_post_build_request.go.tpl
+      sdk_file_end:
+        template_path: hooks/hosted_zone/sdk_file_end.go.tpl
+      ensure_tags:
+        template_path: hooks/hosted_zone/sdk_ensure_tags.go.tpl
+
     tags:
       ignore: true
+    update_operation:
+      custom_method_name: customUpdateHostedZone

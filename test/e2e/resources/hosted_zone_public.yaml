@@ -4,3 +4,6 @@ metadata:
   name: $ZONE_NAME
 spec:
   name: $ZONE_DOMAIN
+  tags:
+    - key: $TAG_KEY
+      value: $TAG_VALUE

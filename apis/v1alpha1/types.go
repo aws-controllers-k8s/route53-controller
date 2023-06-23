@@ -138,10 +138,22 @@ type ResourceRecordSet struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// A complex type containing a resource and its associated tags.
+type ResourceTagSet struct {
+	Tags []*Tag `json:"tags,omitempty"`
+}
+
 // A complex type that contains the status that one Amazon Route 53 health checker
 // reports and the time of the health check.
 type StatusReport struct {
 	CheckedTime *metav1.Time `json:"checkedTime,omitempty"`
+}
+
+// A complex type that contains information about a tag that you want to add
+// or edit for the specified health check or hosted zone.
+type Tag struct {
+	Key   *string `json:"key,omitempty"`
+	Value *string `json:"value,omitempty"`
 }
 
 // A complex type that contains settings for the new traffic policy instance.

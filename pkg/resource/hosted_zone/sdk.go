@@ -136,6 +136,9 @@ func (rm *resourceManager) sdkFind(
 	}
 
 	rm.setStatusDefaults(ko)
+	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
+		return nil, err
+	}
 	return &resource{ko}, nil
 }
 
@@ -243,6 +246,19 @@ func (rm *resourceManager) sdkCreate(
 	}
 
 	rm.setStatusDefaults(ko)
+	if ko.Status.ID != nil {
+		latest := &resource{}
+		latest.ko = &svcapitypes.HostedZone{}
+		latest.ko.Status.ID = ko.Status.ID
+
+		// This is create operation. So, no tags are present in HostedZone.
+		// So, 'latest' is empty except we have copied 'ID' into the status to
+		// make syncTags() happy.
+		if err := rm.syncTags(ctx, desired, latest); err != nil {
+			return nil, err
+		}
+	}
+
 	return &resource{ko}, nil
 }
 
@@ -292,7 +308,7 @@ func (rm *resourceManager) sdkUpdate(
 	latest *resource,
 	delta *ackcompare.Delta,
 ) (*resource, error) {
-	return nil, ackerr.NewTerminalError(ackerr.NotImplemented)
+	return rm.customUpdateHostedZone(ctx, desired, latest, delta)
 }
 
 // sdkDelete deletes the supplied resource in the backend AWS service API
@@ -445,4 +461,18 @@ func (rm *resourceManager) terminalAWSError(err error) bool {
 	default:
 		return false
 	}
+}
+
+func (rm *resourceManager) newTag(
+	c svcapitypes.Tag,
+) *svcsdk.Tag {
+	res := &svcsdk.Tag{}
+	if c.Key != nil {
+		res.SetKey(*c.Key)
+	}
+	if c.Value != nil {
+		res.SetValue(*c.Value)
+	}
+
+	return res
 }
