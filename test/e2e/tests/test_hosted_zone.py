@@ -21,28 +21,41 @@ from typing import Dict
 
 import pytest
 
+from acktest import tags
 from acktest.k8s import resource as k8s
 from acktest.k8s import condition
 from acktest.resources import random_suffix_name
 from e2e import service_marker, CRD_GROUP, CRD_VERSION, load_eks_resource
 from e2e.replacement_values import REPLACEMENT_VALUES
 from e2e.bootstrap_resources import get_bootstrap_resources
+from e2e.tests.helper import Route53Validator
 
 RESOURCE_PLURAL = "hostedzones"
 
 # Time to wait after modifying the CR for the status to change
 MODIFY_WAIT_AFTER_SECONDS = 10
 
+CREATE_WAIT_AFTER_SECONDS = 10
+DELETE_WAIT_AFTER_SECONDS = 10
+
 # Time to wait after the zone has changed status, for the CR to update
 CHECK_STATUS_WAIT_SECONDS = 10
 
 @pytest.fixture
-def public_hosted_zone():
+def public_hosted_zone(request):
     zone_name = random_suffix_name("public-hosted-zone", 32)
 
     replacements = REPLACEMENT_VALUES.copy()
     replacements["ZONE_NAME"] = zone_name
     replacements["ZONE_DOMAIN"] = f"{zone_name}.ack.example.com."
+
+    marker = request.node.get_closest_marker("resource_data")
+    if marker is not None:
+        data = marker.args[0]
+        if 'tag_key' in data:
+            replacements["TAG_KEY"] = data['tag_key']
+        if 'tag_value' in data:
+            replacements["TAG_VALUE"] = data['tag_value']
 
     resource_data = load_eks_resource(
         "hosted_zone_public",
@@ -108,6 +121,7 @@ def private_hosted_zone():
 @service_marker
 @pytest.mark.canary
 class TestHostedZone:
+    @pytest.mark.resource_data({'tag_key': 'key', 'tag_value': 'value'})
     def test_create_delete_public(self, route53_client, public_hosted_zone):
         (ref, cr) = public_hosted_zone
 
@@ -115,11 +129,9 @@ class TestHostedZone:
 
         assert zone_id
 
-        try:
-            aws_res = route53_client.get_hosted_zone(Id=zone_id)
-            assert aws_res is not None
-        except route53_client.exceptions.NoSuchHostedZone:
-            pytest.fail(f"Could not find hosted zone with ID '{zone_id}' in Route53")
+        # Check hosted_zone exists in AWS
+        route53_validator = Route53Validator(route53_client)
+        route53_validator.assert_hosted_zone(zone_id)
 
     def test_create_delete_private(self, route53_client, private_hosted_zone):
         (ref, cr) = private_hosted_zone
@@ -128,8 +140,109 @@ class TestHostedZone:
 
         assert zone_id
 
-        try:
-            aws_res = route53_client.get_hosted_zone(Id=zone_id)
-            assert aws_res is not None
-        except route53_client.exceptions.NoSuchHostedZone:
-            pytest.fail(f"Could not find hosted zone with ID '{zone_id}' in Route53")
+        # Check hosted_zone exists in AWS
+        route53_validator = Route53Validator(route53_client)
+        route53_validator.assert_hosted_zone(zone_id)
+
+    @pytest.mark.resource_data({'tag_key': 'initialtagkey', 'tag_value': 'initialtagvalue'})
+    def test_crud_tags(self, route53_client, public_hosted_zone):
+        (ref, cr) = public_hosted_zone
+
+        resource = k8s.get_resource(ref)
+        resource_id = cr["status"]["id"]
+
+        time.sleep(CREATE_WAIT_AFTER_SECONDS)
+
+        # Check hosted_zone exists in AWS
+        route53_validator = Route53Validator(route53_client)
+        route53_validator.assert_hosted_zone(resource_id)
+
+        # Check system and user tags exist for hosted_zone resource
+        hosted_zone = route53_validator.list_tags_for_resources(resource_id, "hostedzone")
+        user_tags = {
+            "initialtagkey": "initialtagvalue"
+        }
+        tags.assert_ack_system_tags(
+            tags=hosted_zone["Tags"],
+        )
+        tags.assert_equal_without_ack_tags(
+            expected=user_tags,
+            actual=hosted_zone["Tags"],
+        )
+
+        # Only user tags should be present in Spec
+        assert len(resource["spec"]["tags"]) == 1
+        assert resource["spec"]["tags"][0]["key"] == "initialtagkey"
+        assert resource["spec"]["tags"][0]["value"] == "initialtagvalue"
+
+        # Update tags
+        update_tags = [
+                {
+                    "key": "updatedtagkey",
+                    "value": "updatedtagvalue",
+                }
+            ]
+
+        # Patch the dhcpOptions, updating the tags with new pair
+        updates = {
+            "spec": {"tags": update_tags},
+        }
+
+        k8s.patch_custom_resource(ref, updates)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+
+        # Check resource synced successfully
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+
+        # Check for updated user tags; system tags should persist
+        hosted_zone = route53_validator.list_tags_for_resources(resource_id, "hostedzone")
+        updated_tags = {
+            "updatedtagkey": "updatedtagvalue"
+        }
+        tags.assert_ack_system_tags(
+            tags=hosted_zone["Tags"],
+        )
+        tags.assert_equal_without_ack_tags(
+            expected=updated_tags,
+            actual=hosted_zone["Tags"],
+        )
+
+        # Only user tags should be present in Spec
+        resource = k8s.get_resource(ref)
+        assert len(resource["spec"]["tags"]) == 1
+        assert resource["spec"]["tags"][0]["key"] == "updatedtagkey"
+        assert resource["spec"]["tags"][0]["value"] == "updatedtagvalue"
+
+        # Patch the dhcpOptions resource, deleting the tags
+        updates = {
+            "spec": {"tags": []},
+        }
+
+        k8s.patch_custom_resource(ref, updates)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+
+        # Check resource synced successfully
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+
+        # Check for removed user tags; system tags should persist
+        hosted_zone = route53_validator.list_tags_for_resources(resource_id, "hostedzone")
+        tags.assert_ack_system_tags(
+            tags=hosted_zone["Tags"],
+        )
+        tags.assert_equal_without_ack_tags(
+            expected=[],
+            actual=hosted_zone["Tags"],
+        )
+
+        # Check user tags are removed from Spec
+        resource = k8s.get_resource(ref)
+        assert len(resource["spec"]["tags"]) == 0
+
+        # Delete k8s resource
+        _, deleted = k8s.delete_custom_resource(ref)
+        assert deleted is True
+
+        time.sleep(DELETE_WAIT_AFTER_SECONDS)
+
+        # Check hosted_zone no longer exists in AWS
+        route53_validator.assert_hosted_zone(resource_id, exists=False)

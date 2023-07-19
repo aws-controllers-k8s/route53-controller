@@ -50,6 +50,12 @@ type HostedZoneSpec struct {
 	// NameServers that CreateHostedZone returns in DelegationSet.
 	// +kubebuilder:validation:Required
 	Name *string `json:"name"`
+	// A complex type that contains a list of the tags that you want to add to the
+	// specified health check or hosted zone and/or the tags that you want to edit
+	// Value for.
+	//
+	// You can add a maximum of 10 tags to a health check or a hosted zone.
+	Tags []*Tag `json:"tags,omitempty"`
 	// (Private hosted zones only) A complex type that contains information about
 	// the Amazon VPC that you're associating with this hosted zone.
 	//
