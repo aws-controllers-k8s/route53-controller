@@ -37,22 +37,51 @@ var (
 //   - For information about creating failover resource record sets in a private
 //     hosted zone, see Configuring Failover in a Private Hosted Zone (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-private-hosted-zones.html).
 type AliasTarget struct {
-	DNSName      *string `json:"dnsName,omitempty"`
-	HostedZoneID *string `json:"hostedZoneID,omitempty"`
+	DNSName              *string `json:"dnsName,omitempty"`
+	EvaluateTargetHealth *bool   `json:"evaluateTargetHealth,omitempty"`
+	HostedZoneID         *string `json:"hostedZoneID,omitempty"`
+}
+
+// A complex type that identifies a CIDR collection.
+type CIDRCollection struct {
+	ID *string `json:"id,omitempty"`
+}
+
+// The object that is specified in resource record set object when you are linking
+// a resource record set to a CIDR location.
+//
+// A LocationName with an asterisk “*” can be used to create a default CIDR
+// record. CollectionId is still required for default record.
+type CIDRRoutingConfig struct {
+	CollectionID *string `json:"collectionID,omitempty"`
+	LocationName *string `json:"locationName,omitempty"`
+}
+
+// The information for each resource record set that you want to change.
+type Change struct {
+	Action *string `json:"action,omitempty"`
+	// Information about the resource record set to create or delete.
+	ResourceRecordSet *ResourceRecordSet `json:"resourceRecordSet,omitempty"`
 }
 
 // The information for a change request.
 type ChangeBatch struct {
-	Comment *string `json:"comment,omitempty"`
+	Changes []*Change `json:"changes,omitempty"`
+	Comment *string   `json:"comment,omitempty"`
 }
 
 // A complex type that describes change information about changes made to your
 // hosted zone.
 type ChangeInfo struct {
-	Comment     *string      `json:"comment,omitempty"`
 	ID          *string      `json:"id,omitempty"`
 	Status      *string      `json:"status,omitempty"`
 	SubmittedAt *metav1.Time `json:"submittedAt,omitempty"`
+}
+
+// A complex type that is an entry in an CidrCollection (https://docs.aws.amazon.com/Route53/latest/APIReference/API_CidrCollection.html)
+// array.
+type CollectionSummary struct {
+	ID *string `json:"id,omitempty"`
 }
 
 // A complex type that lists the name servers in a delegation set, as well as
@@ -63,9 +92,25 @@ type DelegationSet struct {
 	NameServers     []*string `json:"nameServers,omitempty"`
 }
 
+// A complex type that contains information about a geographic location.
+type GeoLocation struct {
+	ContinentCode   *string `json:"continentCode,omitempty"`
+	CountryCode     *string `json:"countryCode,omitempty"`
+	SubdivisionCode *string `json:"subdivisionCode,omitempty"`
+}
+
+// A complex type that contains the codes and full continent, country, and subdivision
+// names for the specified geolocation code.
+type GeoLocationDetails struct {
+	ContinentCode   *string `json:"continentCode,omitempty"`
+	CountryCode     *string `json:"countryCode,omitempty"`
+	SubdivisionCode *string `json:"subdivisionCode,omitempty"`
+}
+
 // A complex type that contains information about one health check that is associated
 // with the current Amazon Web Services account.
 type HealthCheck struct {
+	ID *string `json:"id,omitempty"`
 	// If a health check or hosted zone was created by another service, LinkedService
 	// is a complex type that describes the service that created the resource. When
 	// a resource is created by another service, you can't edit or delete it using
@@ -127,15 +172,54 @@ type LinkedService struct {
 	ServicePrincipal *string `json:"servicePrincipal,omitempty"`
 }
 
+// A complex type that contains information about the CIDR location.
+type LocationSummary struct {
+	LocationName *string `json:"locationName,omitempty"`
+}
+
 // A complex type that contains information about a configuration for DNS query
 // logging.
 type QueryLoggingConfig struct {
 	HostedZoneID *string `json:"hostedZoneID,omitempty"`
 }
 
+// Information specific to the resource record.
+//
+// If you're creating an alias resource record set, omit ResourceRecord.
+type ResourceRecord struct {
+	Value *string `json:"value,omitempty"`
+}
+
 // Information about the resource record set to create or delete.
 type ResourceRecordSet struct {
-	Name *string `json:"name,omitempty"`
+	// Alias resource record sets only: Information about the Amazon Web Services
+	// resource, such as a CloudFront distribution or an Amazon S3 bucket, that
+	// you want to route traffic to.
+	//
+	// When creating resource record sets for a private hosted zone, note the following:
+	//
+	//    * For information about creating failover resource record sets in a private
+	//    hosted zone, see Configuring Failover in a Private Hosted Zone (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-private-hosted-zones.html).
+	AliasTarget *AliasTarget `json:"aliasTarget,omitempty"`
+	// The object that is specified in resource record set object when you are linking
+	// a resource record set to a CIDR location.
+	//
+	// A LocationName with an asterisk “*” can be used to create a default CIDR
+	// record. CollectionId is still required for default record.
+	CIDRRoutingConfig *CIDRRoutingConfig `json:"cidrRoutingConfig,omitempty"`
+	Failover          *string            `json:"failover,omitempty"`
+	// A complex type that contains information about a geographic location.
+	GeoLocation             *GeoLocation      `json:"geoLocation,omitempty"`
+	HealthCheckID           *string           `json:"healthCheckID,omitempty"`
+	MultiValueAnswer        *bool             `json:"multiValueAnswer,omitempty"`
+	Name                    *string           `json:"name,omitempty"`
+	Region                  *string           `json:"region,omitempty"`
+	ResourceRecords         []*ResourceRecord `json:"resourceRecords,omitempty"`
+	SetIdentifier           *string           `json:"setIdentifier,omitempty"`
+	TTL                     *int64            `json:"tTL,omitempty"`
+	TrafficPolicyInstanceID *string           `json:"trafficPolicyInstanceID,omitempty"`
+	Type                    *string           `json:"type_,omitempty"`
+	Weight                  *int64            `json:"weight,omitempty"`
 }
 
 // A complex type containing a resource and its associated tags.
@@ -156,10 +240,24 @@ type Tag struct {
 	Value *string `json:"value,omitempty"`
 }
 
+// A complex type that contains settings for a traffic policy.
+type TrafficPolicy struct {
+	Type *string `json:"type_,omitempty"`
+}
+
 // A complex type that contains settings for the new traffic policy instance.
 type TrafficPolicyInstance struct {
-	HostedZoneID *string `json:"hostedZoneID,omitempty"`
-	Name         *string `json:"name,omitempty"`
+	HostedZoneID      *string `json:"hostedZoneID,omitempty"`
+	ID                *string `json:"id,omitempty"`
+	Name              *string `json:"name,omitempty"`
+	TTL               *int64  `json:"tTL,omitempty"`
+	TrafficPolicyType *string `json:"trafficPolicyType,omitempty"`
+}
+
+// A complex type that contains information about the latest version of one
+// traffic policy that is associated with the current Amazon Web Services account.
+type TrafficPolicySummary struct {
+	Type *string `json:"type_,omitempty"`
 }
 
 // (Private hosted zones only) A complex type that contains information about

@@ -36,6 +36,7 @@ import (
 	svcresource "github.com/aws-controllers-k8s/route53-controller/pkg/resource"
 
 	_ "github.com/aws-controllers-k8s/route53-controller/pkg/resource/hosted_zone"
+	_ "github.com/aws-controllers-k8s/route53-controller/pkg/resource/record_set"
 
 	"github.com/aws-controllers-k8s/route53-controller/pkg/version"
 )
@@ -85,14 +86,13 @@ func main() {
 	}
 
 	mgr, err := ctrlrt.NewManager(ctrlrt.GetConfigOrDie(), ctrlrt.Options{
-		Scheme:                  scheme,
-		Port:                    port,
-		Host:                    host,
-		MetricsBindAddress:      ackCfg.MetricsAddr,
-		LeaderElection:          ackCfg.EnableLeaderElection,
-		LeaderElectionID:        "ack-" + awsServiceAPIGroup,
-		Namespace:               ackCfg.WatchNamespace,
-		LeaderElectionNamespace: ackCfg.LeaderElectionNamespace,
+		Scheme:             scheme,
+		Port:               port,
+		Host:               host,
+		MetricsBindAddress: ackCfg.MetricsAddr,
+		LeaderElection:     ackCfg.EnableLeaderElection,
+		LeaderElectionID:   awsServiceAPIGroup,
+		Namespace:          ackCfg.WatchNamespace,
 	})
 	if err != nil {
 		setupLog.Error(

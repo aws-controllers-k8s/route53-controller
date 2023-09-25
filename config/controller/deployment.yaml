@@ -36,9 +36,6 @@ spec:
         - "$(ACK_RESOURCE_TAGS)"
         - --watch-namespace
         - "$(ACK_WATCH_NAMESPACE)"
-        - --enable-leader-election=$(ENABLE_LEADER_ELECTION)
-        - --leader-election-namespace
-        - "$(LEADER_ELECTION_NAMESPACE)"
         image: controller:latest
         name: controller
         ports:
@@ -68,10 +65,6 @@ spec:
           value: "info"
         - name: ACK_RESOURCE_TAGS
           value: "services.k8s.aws/controller-version=%CONTROLLER_SERVICE%-%CONTROLLER_VERSION%,services.k8s.aws/namespace=%K8S_NAMESPACE%"
-        - name: ENABLE_LEADER_ELECTION
-          value: "false"
-        - name: LEADER_ELECTION_NAMESPACE
-          value: "ack-system"
         securityContext:
           allowPrivilegeEscalation: false
           privileged: false
@@ -85,6 +78,5 @@ spec:
       terminationGracePeriodSeconds: 10
       serviceAccountName: ack-route53-controller
       hostIPC: false
-      hostPID: false
       hostNetwork: false
-      dnsPolicy: ClusterFirst
+      hostPID: false

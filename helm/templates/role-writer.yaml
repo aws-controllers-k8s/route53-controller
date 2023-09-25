@@ -11,6 +11,8 @@ rules:
   resources:
   - hostedzones
 
+  - recordsets
+
   verbs:
   - create
   - delete
@@ -23,6 +25,7 @@ rules:
   - route53.services.k8s.aws
   resources:
   - hostedzones
+  - recordsets
   verbs:
   - get
   - patch

@@ -1,0 +1,111 @@
+# Simple record
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: RecordSet
+metadata:
+  name: simple-record
+spec:
+  name: "something.awswd."
+  hostedZoneID: Z04155703DMK812RK62LN
+  recordType: A
+  resourceRecords:
+  - value: "172.19.1.13"
+  tTL: 300
+---
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: RecordSet
+metadata:
+  name: simple-record-two
+spec:
+  name: "something.awswd."
+  hostedZoneID: Z04155703DMK812RK62LN
+  recordType: A
+  resourceRecords:
+    - value: "172.19.1.15"
+  tTL: 300
+---
+# Alias record
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: RecordSet
+metadata:
+  name: alias-record
+spec:
+  name: "*.awswd."
+  hostedZoneID: Z04155703DMK812RK62LN
+  recordType: A
+  aliasTarget:
+    evaluateTargetHealth: false
+    dnsName: vpce-0cc6d058bc2a1cf8d-k9vov7eu.vpce-svc-00bab4ffbaa6faeeb.us-west-2.vpce.amazonaws.com.
+    hostedZoneID: Z1YSA3EXCYUU9Z
+---
+# Failover record
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: RecordSet
+metadata:
+  name: failover-record
+spec:
+  name: "something.awswd."
+  hostedZoneID: Z04155703DMK812RK62LN
+  recordType: A
+  resourceRecords:
+    - value: "172.19.1.12"
+  tTL: 210
+  setIdentifier: failover-record
+  failover: SECONDARY
+---
+# Multivalue record
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: RecordSet
+metadata:
+  name: multivalue-record
+spec:
+  name: "stuff.awswd."
+  hostedZoneID: Z04155703DMK812RK62LN
+  recordType: A
+  resourceRecords:
+    - value: "172.19.1.119"
+  tTL: 190
+  multiValueAnswer: true
+  setIdentifier: multivalue-record
+---
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: RecordSet
+metadata:
+  name: multivalue-record-two
+spec:
+  name: "stuff.awswd."
+  hostedZoneID: Z04155703DMK812RK62LN
+  recordType: A
+  resourceRecords:
+    - value: "172.19.1.121"
+  tTL: 200
+  multiValueAnswer: true
+  setIdentifier: multivalue-record-two
+---
+# Weighted record
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: RecordSet
+metadata:
+  name: weighted-record-one
+spec:
+  name: "someweight.awswd."
+  hostedZoneID: Z04155703DMK812RK62LN
+  recordType: A
+  resourceRecords:
+    - value: "172.19.1.15"
+  tTL: 180
+  weight: 70
+  setIdentifier: weighted-record-one
+---
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: RecordSet
+metadata:
+  name: weighted-record-two
+spec:
+  name: "someweight.awswd."
+  hostedZoneID: Z04155703DMK812RK62LN
+  recordType: A
+  resourceRecords:
+    - value: "172.19.1.17"
+  tTL: 180
+  weight: 30
+  setIdentifier: weighted-record-two
