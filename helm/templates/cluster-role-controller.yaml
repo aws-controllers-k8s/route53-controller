@@ -67,6 +67,26 @@ rules:
   - patch
   - update
 - apiGroups:
+  - route53.services.k8s.aws
+  resources:
+  - recordsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - route53.services.k8s.aws
+  resources:
+  - recordsets/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - services.k8s.aws
   resources:
   - adoptedresources
