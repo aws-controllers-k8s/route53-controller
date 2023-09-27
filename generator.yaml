@@ -75,7 +75,8 @@ resources:
         is_immutable: true
       ID:
         is_primary_key: true
-        documentation: "ChangeID is used as a unique identifier"
+        documentation: "ID represents the ChangeID that is returned after a successful 
+        ChangeResourceRecordSet request"
       MultiValueAnswer:
         from:
           operation: ChangeResourceRecordSets
@@ -135,9 +136,6 @@ resources:
       - HostedZoneId
       - Name
       - SetIdentifier
-    # Requeue successful reconciliations to update the status of the record set
-    reconcile:
-      requeue_on_success_seconds: 60
     # This resource does not have tags
     tags:
       ignore: true

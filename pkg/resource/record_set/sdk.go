@@ -244,12 +244,13 @@ func (rm *resourceManager) sdkFind(
 
 	// Status represents whether record changes have been fully propagated to all
 	// Route 53 authoritative DNS servers. The current status for the propagation
-	// should be updated per reconciliation
-	if ko.Status.Status != nil {
-		err = rm.syncStatus(ctx, ko)
-		if err != nil {
-			return nil, err
-		}
+	// should be updated if it's not already in an INSYNC state
+	err = rm.syncStatus(ctx, ko)
+	if err != nil {
+		return nil, err
+	}
+	if ko.Status.Status == nil || *ko.Status.Status == svcsdk.ChangeStatusPending {
+		ackcondition.SetSynced(&resource{ko}, corev1.ConditionFalse, nil, nil)
 	}
 
 	return &resource{ko}, nil
@@ -683,13 +684,8 @@ func (rm *resourceManager) updateConditions(
 			recoverableCondition.Message = nil
 		}
 	}
-	if syncCondition == nil && onSuccess {
-		syncCondition = &ackv1alpha1.Condition{
-			Type:   ackv1alpha1.ConditionTypeResourceSynced,
-			Status: corev1.ConditionTrue,
-		}
-		ko.Status.Conditions = append(ko.Status.Conditions, syncCondition)
-	}
+	// Required to avoid the "declared but not used" error in the default case
+	_ = syncCondition
 	if terminalCondition != nil || recoverableCondition != nil || syncCondition != nil {
 		return &resource{ko}, true // updated
 	}

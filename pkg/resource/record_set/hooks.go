@@ -7,9 +7,11 @@ import (
 
 	svcapitypes "github.com/aws-controllers-k8s/route53-controller/apis/v1alpha1"
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
+	ackcondition "github.com/aws-controllers-k8s/runtime/pkg/condition"
 	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
 	svcsdk "github.com/aws/aws-sdk-go/service/route53"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -225,6 +227,16 @@ func (rm *resourceManager) customUpdateRecordSet(
 	}
 
 	rm.setStatusDefaults(ko)
+
+	// Ensure that the status eventually becomes INSYNC after an update has been detected
+	err = rm.syncStatus(ctx, ko)
+	if err != nil {
+		return nil, err
+	}
+	if ko.Status.Status == nil || *ko.Status.Status == svcsdk.ChangeStatusPending {
+		ackcondition.SetSynced(&resource{ko}, corev1.ConditionFalse, nil, nil)
+	}
+
 	return &resource{ko}, nil
 }
 
@@ -241,10 +253,16 @@ func (rm *resourceManager) syncStatus(
 		exit(err)
 	}()
 
-	changeInput := &svcsdk.GetChangeInput{}
-	if ko.Status.ID != nil {
-		changeInput.SetId(*ko.Status.ID)
+	// It is possible to hit this condition if the previous update resulted
+	// in an invalid ChangeResourceRecordSet invocation
+	if ko.Status.ID == nil {
+		ko.Status.Status = nil
+		return nil
 	}
+
+	changeInput := &svcsdk.GetChangeInput{}
+	changeInput.SetId(*ko.Status.ID)
+
 	resp, err := rm.sdkapi.GetChangeWithContext(ctx, changeInput)
 	rm.metrics.RecordAPICall("GET", "GetChange", err)
 	if err != nil {
@@ -254,4 +272,17 @@ func (rm *resourceManager) syncStatus(
 	status := *resp.ChangeInfo.Status
 	ko.Status.Status = &status
 	return nil
+}
+
+// decodeRecordName filters the DNSName of a record set. ListResourceRecordSets returns
+// the DNS name with a "." at the end and encodes the value for "*", so the DNSName needs
+// to be parsed before comparing with our spec values.
+func decodeRecordName(name string, specName string) string {
+	if specName[len(specName)-1:] != "." {
+		name = name[:len(name)-1]
+	}
+	if strings.Contains(name, "\\052") {
+		return strings.Replace(name, "\\052", "*", -1)
+	}
+	return name
 }

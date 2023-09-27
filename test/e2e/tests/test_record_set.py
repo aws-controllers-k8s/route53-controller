@@ -115,7 +115,7 @@ class TestRecordSet:
         # Ensure that the status eventually switches from PENDING to INSYNC
         assert verify_status_insync(ref) is True
 
-        # Update record set's TTL value and check the value is propagated to AWS
+        # Update record set's resource records and check that the value is propagated to AWS
         updated = patch_record_set(ref)
         assert updated["spec"]["resourceRecords"][0]["value"] != cr["spec"]["resourceRecords"][0]["value"]
 
