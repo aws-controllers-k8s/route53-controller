@@ -100,12 +100,19 @@ func (rm *resourceManager) newGeoLocation(
 // newResourceRecordSet returns a pointer to a ResourceRecordSet object
 // with each field set by the resource's corresponding spec field.
 func (rm *resourceManager) newResourceRecordSet(
+	ctx context.Context,
 	r *resource,
-) *svcsdk.ResourceRecordSet {
+) (*svcsdk.ResourceRecordSet, error) {
 	res := &svcsdk.ResourceRecordSet{}
 
-	// Set required fields
-	res.SetName(*r.ko.Spec.Name)
+	domain, err := rm.getHostedZoneDomain(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	dnsName := rm.getDNSName(r, domain)
+
+	// Set required fields for the ChangeResourceRecordSets API
+	res.SetName(dnsName)
 	res.SetType(*r.ko.Spec.RecordType)
 
 	// Set optional fields
@@ -147,7 +154,7 @@ func (rm *resourceManager) newResourceRecordSet(
 	geoLocation := rm.newGeoLocation(r)
 	res.SetGeoLocation(geoLocation)
 
-	return res
+	return res, nil
 }
 
 // newChangeBatch returns a pointer to a ChangeBatch object
@@ -192,12 +199,14 @@ func (rm *resourceManager) customUpdateRecordSet(
 	input.SetHostedZoneId(*desired.ko.Spec.HostedZoneID)
 
 	action := svcsdk.ChangeActionUpsert
-	recordSet := rm.newResourceRecordSet(desired)
+	recordSet, err := rm.newResourceRecordSet(ctx, desired)
+	if err != nil {
+		return nil, err
+	}
 	changeBatch := rm.newChangeBatch(action, recordSet)
 	input.SetChangeBatch(changeBatch)
 
 	var resp *svcsdk.ChangeResourceRecordSetsOutput
-	_ = resp
 	resp, err = rm.sdkapi.ChangeResourceRecordSetsWithContext(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "ChangeResourceRecordSets", err)
 
@@ -254,7 +263,8 @@ func (rm *resourceManager) syncStatus(
 	}()
 
 	// It is possible to hit this condition if the previous update resulted
-	// in an invalid ChangeResourceRecordSet invocation
+	// in an invalid ChangeResourceRecordSet invocation. In such cases, a
+	// new change ID will be assigned after going through a successful update
 	if ko.Status.ID == nil {
 		ko.Status.Status = nil
 		return nil
@@ -264,7 +274,7 @@ func (rm *resourceManager) syncStatus(
 	changeInput.SetId(*ko.Status.ID)
 
 	resp, err := rm.sdkapi.GetChangeWithContext(ctx, changeInput)
-	rm.metrics.RecordAPICall("GET", "GetChange", err)
+	rm.metrics.RecordAPICall("READ_ONE", "GetChange", err)
 	if err != nil {
 		return err
 	}
@@ -274,13 +284,65 @@ func (rm *resourceManager) syncStatus(
 	return nil
 }
 
-// decodeRecordName filters the DNSName of a record set. ListResourceRecordSets returns
-// the DNS name with a "." at the end and encodes the value for "*", so the DNSName needs
-// to be parsed before comparing with our spec values.
-func decodeRecordName(name string, specName string) string {
+// getHostedZoneDomain gets the domain name of the hosted zone
+func (rm *resourceManager) getHostedZoneDomain(
+	ctx context.Context,
+	r *resource,
+) (string, error) {
+	var err error
+
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.getHostedZoneDomain")
+	defer func() {
+		exit(err)
+	}()
+
+	input := &svcsdk.GetHostedZoneInput{}
+	if r.ko.Spec.HostedZoneID != nil {
+		input.SetId(*r.ko.Spec.HostedZoneID)
+	}
+
+	resp, err := rm.sdkapi.GetHostedZoneWithContext(ctx, input)
+	rm.metrics.RecordAPICall("READ_ONE", "GetHostedZone", err)
+	if err != nil {
+		if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "NoSuchHostedZone" {
+			return "", ackerr.NotFound
+		}
+		return "", err
+	}
+	return *resp.HostedZone.Name, nil
+}
+
+// getDNSName returns the appended value of the user supplied subdomain and the
+// domain of the hosted zone. If a subdomain is not supplied, the full DNS name
+// will equate to the hosted zone domain name
+func (rm *resourceManager) getDNSName(
+	r *resource,
+	domain string,
+) string {
+	var dnsName string
+
+	if r.ko.Spec.Name != nil {
+		dnsName += *r.ko.Spec.Name + "."
+	}
+	dnsName += domain
+	return dnsName
+}
+
+// filterRecordName filters the DNSName of a record set. ListResourceRecordSets returns
+// the DNS name with a "." at the end, so the DNSName needs to be properly filtered
+// before comparing with our spec values
+func filterRecordName(name string, specName string) string {
 	if specName[len(specName)-1:] != "." {
 		name = name[:len(name)-1]
 	}
+	return name
+}
+
+// decodeRecordName decodes special characters from the DNSName of a record set.
+// ListResourceRecordSets returns the DNS names with an encoded value for "*",
+// so the DNSName needs to be decoded before comparing with our spec values
+func decodeRecordName(name string) string {
 	if strings.Contains(name, "\\052") {
 		return strings.Replace(name, "\\052", "*", -1)
 	}

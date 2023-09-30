@@ -280,8 +280,7 @@ type RecordSetSpec struct {
 	// *.example.com. You can't use an * for one of the middle labels, for example,
 	// marketing.*.example.com. In addition, the * must replace the entire label;
 	// for example, you can't specify prod*.example.com.
-	// +kubebuilder:validation:Required
-	Name *string `json:"name"`
+	Name *string `json:"name,omitempty"`
 	// The DNS record type. For information about different record types and how
 	// data is encoded for them, see Supported DNS Resource Record Types (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/ResourceRecordTypes.html)
 	// in the Amazon Route 53 Developer Guide.

@@ -1,9 +1,14 @@
 
-	// Setting the starting point to these values reduces the number
-	// of total records that are returned
-	if r.ko.Spec.Name != nil {
-		input.SetStartRecordName(*r.ko.Spec.Name)
+	// Setting the starting point to these values reduces the number of total records
+	// that are returned
+	domain, err := rm.getHostedZoneDomain(ctx, r)
+	if err != nil {
+		return nil, err
 	}
+
+	dnsName := rm.getDNSName(r, domain)
+	input.SetStartRecordName(dnsName)
+
 	if r.ko.Spec.RecordType != nil {
 		input.SetStartRecordType(*r.ko.Spec.RecordType)
 	}

@@ -60,7 +60,6 @@ def simple_record_set(private_hosted_zone):
 
     replacements = REPLACEMENT_VALUES.copy()
     replacements["SIMPLE_RECORD_NAME"] = simple_record_name
-    replacements["SIMPLE_RECORD_DNS_NAME"] = domain
     replacements["HOSTED_ZONE_ID"] = parsed_zone_id
     replacements["IP_ADDR"] = ip_address
 
@@ -74,6 +73,14 @@ def simple_record_set(private_hosted_zone):
     yield ref, cr
 
     delete_route53_resource(ref)
+
+def status_id_exists(ref):
+    for _ in range(STATUS_UPDATE_RETRY_COUNT):
+        record = get_route53_resource(ref)
+        if "id" in record["status"].keys() and record["status"]["id"]:
+            return True
+        time.sleep(STATUS_UPDATE_WAIT_TIME)
+    return False
 
 def verify_status_insync(ref):
     for _ in range(STATUS_UPDATE_RETRY_COUNT):
@@ -107,10 +114,10 @@ class TestRecordSet:
         route53_validator.assert_hosted_zone(zone_id)
 
         ref, cr = simple_record_set
-        assert cr["status"]["id"]
+        assert status_id_exists(ref) is True
 
         # Check record set exists in AWS
-        route53_validator.assert_record_set(cr)
+        route53_validator.assert_record_set(cr, domain)
 
         # Ensure that the status eventually switches from PENDING to INSYNC
         assert verify_status_insync(ref) is True
@@ -123,4 +130,4 @@ class TestRecordSet:
         assert updated["status"]["id"] != cr["status"]["id"]
 
         # Check record set has been updated in AWS
-        route53_validator.assert_record_set(updated)
+        route53_validator.assert_record_set(updated, domain)

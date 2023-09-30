@@ -81,12 +81,13 @@ resources:
         from:
           operation: ChangeResourceRecordSets
           path: ChangeBatch.Changes.ResourceRecordSet.MultiValueAnswer
-      # Changing this value after a CR has been created could result in orphaned record sets
+      # Changing this value after a CR has been created could result in orphaned record sets.
+      # Note that the name refers to the subdomain value of a record set and not the fully
+      # qualified DNS name
       Name:
         from:
           operation: ChangeResourceRecordSets
           path: ChangeBatch.Changes.ResourceRecordSet.Name
-        is_required: true
         is_immutable: true
       # Changing this value after a CR has been created could result in orphaned record sets
       RecordType:

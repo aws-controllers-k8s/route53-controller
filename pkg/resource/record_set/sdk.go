@@ -73,11 +73,16 @@ func (rm *resourceManager) sdkFind(
 		return nil, err
 	}
 
-	// Setting the starting point to these values reduces the number
-	// of total records that are returned
-	if r.ko.Spec.Name != nil {
-		input.SetStartRecordName(*r.ko.Spec.Name)
+	// Setting the starting point to these values reduces the number of total records
+	// that are returned
+	domain, err := rm.getHostedZoneDomain(ctx, r)
+	if err != nil {
+		return nil, err
 	}
+
+	dnsName := rm.getDNSName(r, domain)
+	input.SetStartRecordName(dnsName)
+
 	if r.ko.Spec.RecordType != nil {
 		input.SetStartRecordType(*r.ko.Spec.RecordType)
 	}
@@ -105,14 +110,37 @@ func (rm *resourceManager) sdkFind(
 	// to be used instead of "json:type_".
 	var recordSets []*svcsdk.ResourceRecordSet
 	for _, elem := range resp.ResourceRecordSets {
+
 		if elem.Name != nil {
-			decodedName := decodeRecordName(*elem.Name, *ko.Spec.Name)
-			elem.Name = &decodedName
+			// Take the subdomain value from the returned results to compare them with
+			// the user specified subdomain
+			subdomain := strings.TrimSuffix(*elem.Name, domain)
+			subdomain = decodeRecordName(subdomain)
+
+			// If user supplied no subdomain, we know that records with subdomains cannot
+			// be a match
+			if r.ko.Spec.Name == nil && subdomain != "" {
+				continue
+			}
+
+			if r.ko.Spec.Name == nil && subdomain == "" {
+				elem.Name = nil
+			}
+
+			// For cases where the user did supply a subdomain value, irrelevant records
+			// returned from ListResourceRecordSets will be further filtered out at a
+			// later point in this method. For now, just parse out the "." at the end
+			// of the decoded subdomain
+			if subdomain != "" {
+				subdomain = subdomain[:len(subdomain)-1]
+				elem.Name = &subdomain
+			}
 		}
 
 		if elem.AliasTarget != nil && ko.Spec.AliasTarget != nil {
 			if elem.AliasTarget.DNSName != nil && ko.Spec.AliasTarget.DNSName != nil {
-				decodedName := decodeRecordName(*elem.AliasTarget.DNSName, *ko.Spec.AliasTarget.DNSName)
+				filteredName := filterRecordName(*elem.AliasTarget.DNSName, *ko.Spec.AliasTarget.DNSName)
+				decodedName := decodeRecordName(filteredName)
 				elem.AliasTarget.DNSName = &decodedName
 			}
 		}
@@ -297,7 +325,10 @@ func (rm *resourceManager) sdkCreate(
 	}
 
 	action := svcsdk.ChangeActionCreate
-	recordSet := rm.newResourceRecordSet(desired)
+	recordSet, err := rm.newResourceRecordSet(ctx, desired)
+	if err != nil {
+		return nil, err
+	}
 	changeBatch := rm.newChangeBatch(action, recordSet)
 	input.SetChangeBatch(changeBatch)
 
@@ -473,7 +504,10 @@ func (rm *resourceManager) sdkDelete(
 	}
 
 	action := svcsdk.ChangeActionDelete
-	recordSet := rm.newResourceRecordSet(r)
+	recordSet, err := rm.newResourceRecordSet(ctx, r)
+	if err != nil {
+		return nil, err
+	}
 	changeBatch := rm.newChangeBatch(action, recordSet)
 	input.SetChangeBatch(changeBatch)
 

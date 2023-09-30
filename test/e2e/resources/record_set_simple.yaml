@@ -3,7 +3,7 @@ kind: RecordSet
 metadata:
   name: $SIMPLE_RECORD_NAME
 spec:
-  name: $SIMPLE_RECORD_DNS_NAME
+  name: test
   hostedZoneID: $HOSTED_ZONE_ID
   recordType: A
   resourceRecords:

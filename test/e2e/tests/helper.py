@@ -40,15 +40,20 @@ class Route53Validator:
             pass
         assert found is exists
 
-    def assert_record_set(self, cr, exists=True):
+    def assert_record_set(self, cr, domain, exists=True):
         res = None
         found = False
         ip_address = cr["spec"]["resourceRecords"][0]["value"] if "resourceRecords" in cr["spec"].keys() else None
 
+        dnsName = ""
+        if "name" in cr["spec"].keys():
+            dnsName += cr["spec"]["name"] + "."
+        dnsName += domain
+
         try:
             res = self.route53_client.list_resource_record_sets(
                 HostedZoneId=cr["spec"]["hostedZoneID"],
-                StartRecordName=cr["spec"]["name"],
+                StartRecordName=dnsName,
                 StartRecordType=cr["spec"]["recordType"]
             )
             found = len(res) > 0
