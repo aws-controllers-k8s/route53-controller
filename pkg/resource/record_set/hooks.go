@@ -210,8 +210,7 @@ func (rm *resourceManager) customUpdateRecordSet(
 	resp, err = rm.sdkapi.ChangeResourceRecordSetsWithContext(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "ChangeResourceRecordSets", err)
 
-	// Reset previous PENDING or INSYNC status to represent that the
-	// updated record set is now in an invalid state
+	// The previous change batch is no longer representative of the newly applied change.
 	if err != nil {
 		ko.Status.ID = nil
 		ko.Status.Status = nil
@@ -262,9 +261,9 @@ func (rm *resourceManager) syncStatus(
 		exit(err)
 	}()
 
-	// It is possible to hit this condition if the previous update resulted
-	// in an invalid ChangeResourceRecordSet invocation. In such cases, a
-	// new change ID will be assigned after going through a successful update
+	// It is possible to hit this condition if the previous change batch was
+	// invalid (e.g. bad parameter). In such cases, a new change ID will be
+	// assigned after going through a successful update.
 	if ko.Status.ID == nil {
 		ko.Status.Status = nil
 		return nil
@@ -284,7 +283,7 @@ func (rm *resourceManager) syncStatus(
 	return nil
 }
 
-// getHostedZoneDomain gets the domain name of the hosted zone
+// getHostedZoneDomain gets the domain name of the hosted zone.
 func (rm *resourceManager) getHostedZoneDomain(
 	ctx context.Context,
 	r *resource,
@@ -315,13 +314,11 @@ func (rm *resourceManager) getHostedZoneDomain(
 
 // getDNSName returns the appended value of the user supplied subdomain and the
 // domain of the hosted zone. If a subdomain is not supplied, the full DNS name
-// will equate to the hosted zone domain name
+// will just equate to the hosted zone domain name.
 func (rm *resourceManager) getDNSName(
 	r *resource,
 	domain string,
-) string {
-	var dnsName string
-
+) (dnsName string) {
 	if r.ko.Spec.Name != nil {
 		dnsName += *r.ko.Spec.Name + "."
 	}
@@ -329,19 +326,9 @@ func (rm *resourceManager) getDNSName(
 	return dnsName
 }
 
-// filterRecordName filters the DNSName of a record set. ListResourceRecordSets returns
-// the DNS name with a "." at the end, so the DNSName needs to be properly filtered
-// before comparing with our spec values
-func filterRecordName(name string, specName string) string {
-	if specName[len(specName)-1:] != "." {
-		name = name[:len(name)-1]
-	}
-	return name
-}
-
 // decodeRecordName decodes special characters from the DNSName of a record set.
 // ListResourceRecordSets returns the DNS names with an encoded value for "*",
-// so the DNSName needs to be decoded before comparing with our spec values
+// so the DNSName needs to be decoded before comparing with our spec values.
 func decodeRecordName(name string) string {
 	if strings.Contains(name, "\\052") {
 		return strings.Replace(name, "\\052", "*", -1)
