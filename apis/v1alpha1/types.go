@@ -216,7 +216,7 @@ type ResourceRecordSet struct {
 	Region                  *string           `json:"region,omitempty"`
 	ResourceRecords         []*ResourceRecord `json:"resourceRecords,omitempty"`
 	SetIdentifier           *string           `json:"setIdentifier,omitempty"`
-	TTL                     *int64            `json:"tTL,omitempty"`
+	TTL                     *int64            `json:"ttl,omitempty"`
 	TrafficPolicyInstanceID *string           `json:"trafficPolicyInstanceID,omitempty"`
 	Type                    *string           `json:"type_,omitempty"`
 	Weight                  *int64            `json:"weight,omitempty"`
@@ -250,7 +250,7 @@ type TrafficPolicyInstance struct {
 	HostedZoneID      *string `json:"hostedZoneID,omitempty"`
 	ID                *string `json:"id,omitempty"`
 	Name              *string `json:"name,omitempty"`
-	TTL               *int64  `json:"tTL,omitempty"`
+	TTL               *int64  `json:"ttl,omitempty"`
 	TrafficPolicyType *string `json:"trafficPolicyType,omitempty"`
 }
 

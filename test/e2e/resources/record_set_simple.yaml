@@ -8,4 +8,4 @@ spec:
   recordType: A
   resourceRecords:
   - value: $IP_ADDR
-  tTL: 300
+  ttl: 300

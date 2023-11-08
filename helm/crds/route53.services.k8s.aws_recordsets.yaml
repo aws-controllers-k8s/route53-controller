@@ -136,11 +136,11 @@ spec:
                               type: array
                             setIdentifier:
                               type: string
-                            tTL:
-                              format: int64
-                              type: integer
                             trafficPolicyInstanceID:
                               type: string
+                            ttl:
+                              format: int64
+                              type: integer
                             type_:
                               type: string
                             weight:
@@ -462,7 +462,7 @@ spec:
                   see Choosing a Routing Policy (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html)
                   in the Amazon Route 53 Developer Guide."
                 type: string
-              tTL:
+              ttl:
                 description: "The resource record cache time to live (TTL), in seconds.
                   Note the following: \n - If you're creating or updating an alias
                   resource record set, omit TTL. Amazon Route 53 uses the value of

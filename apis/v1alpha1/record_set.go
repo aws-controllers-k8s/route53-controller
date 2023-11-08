@@ -395,7 +395,7 @@ type RecordSetSpec struct {
 	//     weighted resource record sets that have the same name and type. Values
 	//     other than 60 seconds (the TTL for load balancers) will change the effect
 	//     of the values that you specify for Weight.
-	TTL *int64 `json:"tTL,omitempty"`
+	TTL *int64 `json:"ttl,omitempty"`
 	// Weighted resource record sets only: Among resource record sets that have
 	// the same combination of DNS name and type, a value that determines the proportion
 	// of DNS queries that Amazon Route 53 responds to using the current resource
