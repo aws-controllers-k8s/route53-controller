@@ -14,11 +14,6 @@
 """Helper functions for route53 tests
 """
 
-import pytest
-
-from typing import Union, Dict
-
-
 class Route53Validator:
     def __init__(self, route53_client):
         self.route53_client = route53_client
@@ -26,21 +21,45 @@ class Route53Validator:
     def list_tags_for_resources(self, resource_id: str, resource_type: str):
         resource_id = resource_id.replace('/' + resource_type + '/', '')
         try:
-            aws_res = self.route53_client.list_tags_for_resource(
+            res = self.route53_client.list_tags_for_resource(
                 ResourceType=resource_type,
                 ResourceId=resource_id)
-            assert aws_res is not None
-            if len(aws_res["ResourceTagSet"]) > 0:
-                return aws_res["ResourceTagSet"]
+            assert res is not None
+            if len(res["ResourceTagSet"]) > 0:
+                return res["ResourceTagSet"]
             assert False
         except self.route53_client.exceptions.ClientError as e:
             return None
 
     def assert_hosted_zone(self, hosted_zone_id: str, exists=True):
-        res_found = False
+        found = False
         try:
-            aws_res = self.route53_client.get_hosted_zone(Id=hosted_zone_id)
-            res_found = len(aws_res["HostedZone"]) > 0
+            res = self.route53_client.get_hosted_zone(Id=hosted_zone_id)
+            found = len(res["HostedZone"]) > 0
         except self.route53_client.exceptions.ClientError:
             pass
-        assert res_found is exists
+        assert found is exists
+
+    def assert_record_set(self, cr, domain, exists=True):
+        res = None
+        found = False
+        ip_address = cr["spec"]["resourceRecords"][0]["value"] if "resourceRecords" in cr["spec"].keys() else None
+
+        dnsName = ""
+        if "name" in cr["spec"].keys():
+            dnsName += cr["spec"]["name"] + "."
+        dnsName += domain
+
+        try:
+            res = self.route53_client.list_resource_record_sets(
+                HostedZoneId=cr["spec"]["hostedZoneID"],
+                StartRecordName=dnsName,
+                StartRecordType=cr["spec"]["recordType"]
+            )
+            found = len(res) > 0
+        except self.route53_client.exceptions.ClientError:
+            pass
+
+        assert found is exists
+        if exists and ip_address:
+            assert ip_address in str(res)

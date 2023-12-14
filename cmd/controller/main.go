@@ -36,6 +36,7 @@ import (
 	svcresource "github.com/aws-controllers-k8s/route53-controller/pkg/resource"
 
 	_ "github.com/aws-controllers-k8s/route53-controller/pkg/resource/hosted_zone"
+	_ "github.com/aws-controllers-k8s/route53-controller/pkg/resource/record_set"
 
 	"github.com/aws-controllers-k8s/route53-controller/pkg/version"
 )
