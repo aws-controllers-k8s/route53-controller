@@ -71,8 +71,12 @@ func newResourceDelta(
 	if ackcompare.HasNilDifference(a.ko.Spec.ChangeBatch, b.ko.Spec.ChangeBatch) {
 		delta.Add("Spec.ChangeBatch", a.ko.Spec.ChangeBatch, b.ko.Spec.ChangeBatch)
 	} else if a.ko.Spec.ChangeBatch != nil && b.ko.Spec.ChangeBatch != nil {
-		if !reflect.DeepEqual(a.ko.Spec.ChangeBatch.Changes, b.ko.Spec.ChangeBatch.Changes) {
+		if len(a.ko.Spec.ChangeBatch.Changes) != len(b.ko.Spec.ChangeBatch.Changes) {
 			delta.Add("Spec.ChangeBatch.Changes", a.ko.Spec.ChangeBatch.Changes, b.ko.Spec.ChangeBatch.Changes)
+		} else if len(a.ko.Spec.ChangeBatch.Changes) > 0 {
+			if !reflect.DeepEqual(a.ko.Spec.ChangeBatch.Changes, b.ko.Spec.ChangeBatch.Changes) {
+				delta.Add("Spec.ChangeBatch.Changes", a.ko.Spec.ChangeBatch.Changes, b.ko.Spec.ChangeBatch.Changes)
+			}
 		}
 		if ackcompare.HasNilDifference(a.ko.Spec.ChangeBatch.Comment, b.ko.Spec.ChangeBatch.Comment) {
 			delta.Add("Spec.ChangeBatch.Comment", a.ko.Spec.ChangeBatch.Comment, b.ko.Spec.ChangeBatch.Comment)
@@ -177,8 +181,12 @@ func newResourceDelta(
 			delta.Add("Spec.Region", a.ko.Spec.Region, b.ko.Spec.Region)
 		}
 	}
-	if !reflect.DeepEqual(a.ko.Spec.ResourceRecords, b.ko.Spec.ResourceRecords) {
+	if len(a.ko.Spec.ResourceRecords) != len(b.ko.Spec.ResourceRecords) {
 		delta.Add("Spec.ResourceRecords", a.ko.Spec.ResourceRecords, b.ko.Spec.ResourceRecords)
+	} else if len(a.ko.Spec.ResourceRecords) > 0 {
+		if !reflect.DeepEqual(a.ko.Spec.ResourceRecords, b.ko.Spec.ResourceRecords) {
+			delta.Add("Spec.ResourceRecords", a.ko.Spec.ResourceRecords, b.ko.Spec.ResourceRecords)
+		}
 	}
 	if ackcompare.HasNilDifference(a.ko.Spec.SetIdentifier, b.ko.Spec.SetIdentifier) {
 		delta.Add("Spec.SetIdentifier", a.ko.Spec.SetIdentifier, b.ko.Spec.SetIdentifier)

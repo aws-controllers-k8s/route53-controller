@@ -56,12 +56,15 @@ const (
 	CloudWatchRegion_us_west_2      CloudWatchRegion = "us-west-2"
 	CloudWatchRegion_ca_central_1   CloudWatchRegion = "ca-central-1"
 	CloudWatchRegion_eu_central_1   CloudWatchRegion = "eu-central-1"
+	CloudWatchRegion_eu_central_2   CloudWatchRegion = "eu-central-2"
 	CloudWatchRegion_eu_west_1      CloudWatchRegion = "eu-west-1"
 	CloudWatchRegion_eu_west_2      CloudWatchRegion = "eu-west-2"
 	CloudWatchRegion_eu_west_3      CloudWatchRegion = "eu-west-3"
 	CloudWatchRegion_ap_east_1      CloudWatchRegion = "ap-east-1"
 	CloudWatchRegion_me_south_1     CloudWatchRegion = "me-south-1"
+	CloudWatchRegion_me_central_1   CloudWatchRegion = "me-central-1"
 	CloudWatchRegion_ap_south_1     CloudWatchRegion = "ap-south-1"
+	CloudWatchRegion_ap_south_2     CloudWatchRegion = "ap-south-2"
 	CloudWatchRegion_ap_southeast_1 CloudWatchRegion = "ap-southeast-1"
 	CloudWatchRegion_ap_southeast_2 CloudWatchRegion = "ap-southeast-2"
 	CloudWatchRegion_ap_southeast_3 CloudWatchRegion = "ap-southeast-3"
@@ -74,11 +77,14 @@ const (
 	CloudWatchRegion_cn_north_1     CloudWatchRegion = "cn-north-1"
 	CloudWatchRegion_af_south_1     CloudWatchRegion = "af-south-1"
 	CloudWatchRegion_eu_south_1     CloudWatchRegion = "eu-south-1"
+	CloudWatchRegion_eu_south_2     CloudWatchRegion = "eu-south-2"
 	CloudWatchRegion_us_gov_west_1  CloudWatchRegion = "us-gov-west-1"
 	CloudWatchRegion_us_gov_east_1  CloudWatchRegion = "us-gov-east-1"
 	CloudWatchRegion_us_iso_east_1  CloudWatchRegion = "us-iso-east-1"
 	CloudWatchRegion_us_iso_west_1  CloudWatchRegion = "us-iso-west-1"
 	CloudWatchRegion_us_isob_east_1 CloudWatchRegion = "us-isob-east-1"
+	CloudWatchRegion_ap_southeast_4 CloudWatchRegion = "ap-southeast-4"
+	CloudWatchRegion_il_central_1   CloudWatchRegion = "il-central-1"
 )
 
 type ComparisonOperator string
@@ -121,6 +127,12 @@ type HostedZoneLimitType string
 const (
 	HostedZoneLimitType_MAX_RRSETS_BY_ZONE          HostedZoneLimitType = "MAX_RRSETS_BY_ZONE"
 	HostedZoneLimitType_MAX_VPCS_ASSOCIATED_BY_ZONE HostedZoneLimitType = "MAX_VPCS_ASSOCIATED_BY_ZONE"
+)
+
+type HostedZoneType string
+
+const (
+	HostedZoneType_PrivateHostedZone HostedZoneType = "PrivateHostedZone"
 )
 
 type InsufficientDataHealthStatus string
@@ -177,6 +189,7 @@ const (
 	ResourceRecordSetRegion_eu_west_2      ResourceRecordSetRegion = "eu-west-2"
 	ResourceRecordSetRegion_eu_west_3      ResourceRecordSetRegion = "eu-west-3"
 	ResourceRecordSetRegion_eu_central_1   ResourceRecordSetRegion = "eu-central-1"
+	ResourceRecordSetRegion_eu_central_2   ResourceRecordSetRegion = "eu-central-2"
 	ResourceRecordSetRegion_ap_southeast_1 ResourceRecordSetRegion = "ap-southeast-1"
 	ResourceRecordSetRegion_ap_southeast_2 ResourceRecordSetRegion = "ap-southeast-2"
 	ResourceRecordSetRegion_ap_southeast_3 ResourceRecordSetRegion = "ap-southeast-3"
@@ -189,9 +202,14 @@ const (
 	ResourceRecordSetRegion_cn_northwest_1 ResourceRecordSetRegion = "cn-northwest-1"
 	ResourceRecordSetRegion_ap_east_1      ResourceRecordSetRegion = "ap-east-1"
 	ResourceRecordSetRegion_me_south_1     ResourceRecordSetRegion = "me-south-1"
+	ResourceRecordSetRegion_me_central_1   ResourceRecordSetRegion = "me-central-1"
 	ResourceRecordSetRegion_ap_south_1     ResourceRecordSetRegion = "ap-south-1"
+	ResourceRecordSetRegion_ap_south_2     ResourceRecordSetRegion = "ap-south-2"
 	ResourceRecordSetRegion_af_south_1     ResourceRecordSetRegion = "af-south-1"
 	ResourceRecordSetRegion_eu_south_1     ResourceRecordSetRegion = "eu-south-1"
+	ResourceRecordSetRegion_eu_south_2     ResourceRecordSetRegion = "eu-south-2"
+	ResourceRecordSetRegion_ap_southeast_4 ResourceRecordSetRegion = "ap-southeast-4"
+	ResourceRecordSetRegion_il_central_1   ResourceRecordSetRegion = "il-central-1"
 )
 
 type ReusableDelegationSetLimitType string
@@ -228,6 +246,7 @@ const (
 	VPCRegion_eu_west_2      VPCRegion = "eu-west-2"
 	VPCRegion_eu_west_3      VPCRegion = "eu-west-3"
 	VPCRegion_eu_central_1   VPCRegion = "eu-central-1"
+	VPCRegion_eu_central_2   VPCRegion = "eu-central-2"
 	VPCRegion_ap_east_1      VPCRegion = "ap-east-1"
 	VPCRegion_me_south_1     VPCRegion = "me-south-1"
 	VPCRegion_us_gov_west_1  VPCRegion = "us-gov-west-1"
@@ -235,10 +254,12 @@ const (
 	VPCRegion_us_iso_east_1  VPCRegion = "us-iso-east-1"
 	VPCRegion_us_iso_west_1  VPCRegion = "us-iso-west-1"
 	VPCRegion_us_isob_east_1 VPCRegion = "us-isob-east-1"
+	VPCRegion_me_central_1   VPCRegion = "me-central-1"
 	VPCRegion_ap_southeast_1 VPCRegion = "ap-southeast-1"
 	VPCRegion_ap_southeast_2 VPCRegion = "ap-southeast-2"
 	VPCRegion_ap_southeast_3 VPCRegion = "ap-southeast-3"
 	VPCRegion_ap_south_1     VPCRegion = "ap-south-1"
+	VPCRegion_ap_south_2     VPCRegion = "ap-south-2"
 	VPCRegion_ap_northeast_1 VPCRegion = "ap-northeast-1"
 	VPCRegion_ap_northeast_2 VPCRegion = "ap-northeast-2"
 	VPCRegion_ap_northeast_3 VPCRegion = "ap-northeast-3"
@@ -248,4 +269,7 @@ const (
 	VPCRegion_cn_north_1     VPCRegion = "cn-north-1"
 	VPCRegion_af_south_1     VPCRegion = "af-south-1"
 	VPCRegion_eu_south_1     VPCRegion = "eu-south-1"
+	VPCRegion_eu_south_2     VPCRegion = "eu-south-2"
+	VPCRegion_ap_southeast_4 VPCRegion = "ap-southeast-4"
+	VPCRegion_il_central_1   VPCRegion = "il-central-1"
 )
