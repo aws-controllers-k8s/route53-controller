@@ -422,12 +422,10 @@ spec:
                   set refers to. The resource typically is an Amazon Web Services
                   resource, such as an EC2 instance or an ELB load balancer, and is
                   referred to by an IP address or a DNS domain name, depending on
-                  the record type. \n Although creating latency and latency alias
-                  resource record sets in a private hosted zone is allowed, it's not
-                  supported. \n When Amazon Route 53 receives a DNS query for a domain
-                  name and type for which you have created latency resource record
-                  sets, Route 53 selects the latency resource record set that has
-                  the lowest latency between the end user and the associated Amazon
+                  the record type. \n When Amazon Route 53 receives a DNS query for
+                  a domain name and type for which you have created latency resource
+                  record sets, Route 53 selects the latency resource record set that
+                  has the lowest latency between the end user and the associated Amazon
                   EC2 Region. Route 53 then returns the value that is associated with
                   the selected resource record set. \n Note the following: \n * You
                   can only specify one ResourceRecord per latency resource record
