@@ -80,6 +80,26 @@ rules:
 - apiGroups:
   - route53.services.k8s.aws
   resources:
+  - healthchecks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - route53.services.k8s.aws
+  resources:
+  - healthchecks/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - route53.services.k8s.aws
+  resources:
   - hostedzones
   verbs:
   - create
