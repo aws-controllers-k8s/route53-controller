@@ -136,13 +136,6 @@ func newResourceDelta(
 			}
 		}
 	}
-	if ackcompare.HasNilDifference(a.ko.Spec.HealthCheckID, b.ko.Spec.HealthCheckID) {
-		delta.Add("Spec.HealthCheckID", a.ko.Spec.HealthCheckID, b.ko.Spec.HealthCheckID)
-	} else if a.ko.Spec.HealthCheckID != nil && b.ko.Spec.HealthCheckID != nil {
-		if *a.ko.Spec.HealthCheckID != *b.ko.Spec.HealthCheckID {
-			delta.Add("Spec.HealthCheckID", a.ko.Spec.HealthCheckID, b.ko.Spec.HealthCheckID)
-		}
-	}
 	if ackcompare.HasNilDifference(a.ko.Spec.HostedZoneID, b.ko.Spec.HostedZoneID) {
 		delta.Add("Spec.HostedZoneID", a.ko.Spec.HostedZoneID, b.ko.Spec.HostedZoneID)
 	} else if a.ko.Spec.HostedZoneID != nil && b.ko.Spec.HostedZoneID != nil {

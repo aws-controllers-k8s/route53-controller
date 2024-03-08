@@ -2,10 +2,11 @@ ignore:
   field_paths:
   - ChangeResourceRecordSetsOutput.ChangeInfo.Comment
   - CreateHostedZoneInput.CallerReference
+  - CreateHealthCheckInput.CallerReference
   operations: null
   resource_names:
   - CidrCollection
-  - HealthCheck
+  # - HealthCheck
   # - HostedZone
   - KeySigningKey
   - QueryLoggingConfig
@@ -33,6 +34,10 @@ operations:
     output_wrapper_field_path: HostedZone
   GetHostedZone:
     output_wrapper_field_path: HostedZone
+  CreateHealthCheck:
+    output_wrapper_field_path: HealthCheck
+  GetHealthCheck: 
+    output_wrapper_field_path: HealthCheck
 prefix_config: {}
 resources:
   RecordSet:
@@ -63,9 +68,13 @@ resources:
           operation: ChangeResourceRecordSets
           path: ChangeBatch.Changes.ResourceRecordSet.GeoLocation
       HealthCheckId:
-        from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.HealthCheckId
+        # from:
+        #   operation: ChangeResourceRecordSets
+        #   path: ChangeBatch.Changes.ResourceRecordSet.HealthCheckId
+        references:
+          resource: HealthCheck
+          path: Status.ID
+          is_immutable: true
       # Changing this value after a CR has been created could result in orphaned record sets
       HostedZoneId:
         references:
@@ -173,3 +182,26 @@ resources:
       ignore: true
     update_operation:
       custom_method_name: customUpdateHostedZone
+  HealthCheck:
+    renames:
+      operations:
+        GetHealthCheck:
+          input_fields:
+            HealthCheckId: Id
+    exceptions:
+      terminal_codes:
+      - TooManyHealthChecks
+      - HealthCheckAlreadyExists
+      - InvalidInput
+      - HealthCheckInUse
+    fields:
+      Tags:
+        from:
+          operation: ChangeTagsForResource
+          path: AddTags
+        compare:
+          is_ignored: True
+    tags:
+      ignore: true
+    update_operation:
+      custom_method_name: customUpdateHealthCheck

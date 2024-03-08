@@ -204,11 +204,6 @@ func (rm *resourceManager) sdkFind(
 		} else {
 			ko.Spec.GeoLocation = nil
 		}
-		if elem.HealthCheckId != nil {
-			ko.Spec.HealthCheckID = elem.HealthCheckId
-		} else {
-			ko.Spec.HealthCheckID = nil
-		}
 		if elem.MultiValueAnswer != nil {
 			ko.Spec.MultiValueAnswer = elem.MultiValueAnswer
 		} else {
