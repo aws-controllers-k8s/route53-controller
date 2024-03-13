@@ -286,6 +286,130 @@ spec:
                   subdivisionCode:
                     type: string
                 type: object
+              healthCheckID:
+                description: |-
+                  If you want Amazon Route 53 to return this resource record set in response
+                  to a DNS query only when the status of a health check is healthy, include
+                  the HealthCheckId element and specify the ID of the applicable health check.
+
+
+                  Route 53 determines whether a resource record set is healthy based on one
+                  of the following:
+
+
+                     * By periodically sending a request to the endpoint that is specified
+                     in the health check
+
+
+                     * By aggregating the status of a specified group of health checks (calculated
+                     health checks)
+
+
+                     * By determining the current state of a CloudWatch alarm (CloudWatch metric
+                     health checks)
+
+
+                  Route 53 doesn't check the health of the endpoint that is specified in the
+                  resource record set, for example, the endpoint specified by the IP address
+                  in the Value element. When you add a HealthCheckId element to a resource
+                  record set, Route 53 checks the health of the endpoint that you specified
+                  in the health check.
+
+
+                  For more information, see the following topics in the Amazon Route 53 Developer
+                  Guide:
+
+
+                     * How Amazon Route 53 Determines Whether an Endpoint Is Healthy (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-determining-health-of-endpoints.html)
+
+
+                     * Route 53 Health Checks and DNS Failover (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover.html)
+
+
+                     * Configuring Failover in a Private Hosted Zone (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-private-hosted-zones.html)
+
+
+                  When to Specify HealthCheckId
+
+
+                  Specifying a value for HealthCheckId is useful only when Route 53 is choosing
+                  between two or more resource record sets to respond to a DNS query, and you
+                  want Route 53 to base the choice in part on the status of a health check.
+                  Configuring health checks makes sense only in the following configurations:
+
+
+                     * Non-alias resource record sets: You're checking the health of a group
+                     of non-alias resource record sets that have the same routing policy, name,
+                     and type (such as multiple weighted records named www.example.com with
+                     a type of A) and you specify health check IDs for all the resource record
+                     sets. If the health check status for a resource record set is healthy,
+                     Route 53 includes the record among the records that it responds to DNS
+                     queries with. If the health check status for a resource record set is
+                     unhealthy, Route 53 stops responding to DNS queries using the value for
+                     that resource record set. If the health check status for all resource
+                     record sets in the group is unhealthy, Route 53 considers all resource
+                     record sets in the group healthy and responds to DNS queries accordingly.
+
+
+                     * Alias resource record sets: You specify the following settings: You
+                     set EvaluateTargetHealth to true for an alias resource record set in a
+                     group of resource record sets that have the same routing policy, name,
+                     and type (such as multiple weighted records named www.example.com with
+                     a type of A). You configure the alias resource record set to route traffic
+                     to a non-alias resource record set in the same hosted zone. You specify
+                     a health check ID for the non-alias resource record set. If the health
+                     check status is healthy, Route 53 considers the alias resource record
+                     set to be healthy and includes the alias record among the records that
+                     it responds to DNS queries with. If the health check status is unhealthy,
+                     Route 53 stops responding to DNS queries using the alias resource record
+                     set. The alias resource record set can also route traffic to a group of
+                     non-alias resource record sets that have the same routing policy, name,
+                     and type. In that configuration, associate health checks with all of the
+                     resource record sets in the group of non-alias resource record sets.
+
+
+                  Geolocation Routing
+
+
+                  For geolocation resource record sets, if an endpoint is unhealthy, Route
+                  53 looks for a resource record set for the larger, associated geographic
+                  region. For example, suppose you have resource record sets for a state in
+                  the United States, for the entire United States, for North America, and a
+                  resource record set that has * for CountryCode is *, which applies to all
+                  locations. If the endpoint for the state resource record set is unhealthy,
+                  Route 53 checks for healthy resource record sets in the following order until
+                  it finds a resource record set for which the endpoint is healthy:
+
+
+                     * The United States
+
+
+                     * North America
+
+
+                     * The default resource record set
+
+
+                  Specifying the Health Check Endpoint by Domain Name
+
+
+                  If your health checks specify the endpoint only by domain name, we recommend
+                  that you create a separate health check for each endpoint. For example, create
+                  a health check for each HTTP server that is serving content for www.example.com.
+                  For the value of FullyQualifiedDomainName, specify the domain name of the
+                  server (such as us-east-2-www.example.com), not the name of the resource
+                  record sets (www.example.com).
+
+
+                  Health check results will be unpredictable if you do the following:
+
+
+                     * Create a health check that has the same value for FullyQualifiedDomainName
+                     as the name of a resource record set.
+
+
+                     * Associate that health check with the resource record set.
+                type: string
               hostedZoneID:
                 description: |-
                   The ID of the hosted zone that contains the resource record sets that you
