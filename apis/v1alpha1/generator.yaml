@@ -2,10 +2,11 @@ ignore:
   field_paths:
   - ChangeResourceRecordSetsOutput.ChangeInfo.Comment
   - CreateHostedZoneInput.CallerReference
+  - CreateHealthCheckInput.CallerReference
   operations: null
   resource_names:
   - CidrCollection
-  - HealthCheck
+  # - HealthCheck
   # - HostedZone
   - KeySigningKey
   - QueryLoggingConfig
@@ -33,6 +34,10 @@ operations:
     output_wrapper_field_path: HostedZone
   GetHostedZone:
     output_wrapper_field_path: HostedZone
+  CreateHealthCheck:
+    output_wrapper_field_path: HealthCheck
+  GetHealthCheck: 
+    output_wrapper_field_path: HealthCheck
 prefix_config: {}
 resources:
   RecordSet:
@@ -173,3 +178,20 @@ resources:
       ignore: true
     update_operation:
       custom_method_name: customUpdateHostedZone
+  HealthCheck:
+    renames:
+      operations:
+        GetHealthCheck:
+          input_fields:
+            HealthCheckId: Id
+    exceptions:
+      terminal_codes:
+      - InvalidInput
+      - HealthCheckInUse
+    fields:
+      Tags:
+        from:
+          operation: ChangeTagsForResource
+          path: AddTags
+    tags:
+      ignore: true
