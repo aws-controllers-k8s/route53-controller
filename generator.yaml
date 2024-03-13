@@ -68,13 +68,9 @@ resources:
           operation: ChangeResourceRecordSets
           path: ChangeBatch.Changes.ResourceRecordSet.GeoLocation
       HealthCheckId:
-        # from:
-        #   operation: ChangeResourceRecordSets
-        #   path: ChangeBatch.Changes.ResourceRecordSet.HealthCheckId
-        references:
-          resource: HealthCheck
-          path: Status.ID
-          is_immutable: true
+        from:
+          operation: ChangeResourceRecordSets
+          path: ChangeBatch.Changes.ResourceRecordSet.HealthCheckId
       # Changing this value after a CR has been created could result in orphaned record sets
       HostedZoneId:
         references:
@@ -190,8 +186,6 @@ resources:
             HealthCheckId: Id
     exceptions:
       terminal_codes:
-      - TooManyHealthChecks
-      - HealthCheckAlreadyExists
       - InvalidInput
       - HealthCheckInUse
     fields:
@@ -199,9 +193,5 @@ resources:
         from:
           operation: ChangeTagsForResource
           path: AddTags
-        compare:
-          is_ignored: True
     tags:
       ignore: true
-    update_operation:
-      custom_method_name: customUpdateHealthCheck

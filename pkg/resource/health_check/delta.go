@@ -184,6 +184,13 @@ func newResourceDelta(
 			}
 		}
 	}
+	if len(a.ko.Spec.Tags) != len(b.ko.Spec.Tags) {
+		delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
+	} else if len(a.ko.Spec.Tags) > 0 {
+		if !reflect.DeepEqual(a.ko.Spec.Tags, b.ko.Spec.Tags) {
+			delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
+		}
+	}
 
 	return delta
 }

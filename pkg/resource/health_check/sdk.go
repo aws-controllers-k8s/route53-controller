@@ -542,8 +542,194 @@ func (rm *resourceManager) sdkUpdate(
 	desired *resource,
 	latest *resource,
 	delta *ackcompare.Delta,
-) (*resource, error) {
-	return rm.customUpdateHealthCheck(ctx, desired, latest, delta)
+) (updated *resource, err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.sdkUpdate")
+	defer func() {
+		exit(err)
+	}()
+	input, err := rm.newUpdateRequestPayload(ctx, desired, delta)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp *svcsdk.UpdateHealthCheckOutput
+	_ = resp
+	resp, err = rm.sdkapi.UpdateHealthCheckWithContext(ctx, input)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateHealthCheck", err)
+	if err != nil {
+		return nil, err
+	}
+	// Merge in the information we read from the API call above to the copy of
+	// the original Kubernetes object we passed to the function
+	ko := desired.ko.DeepCopy()
+
+	if resp.HealthCheck.CallerReference != nil {
+		ko.Status.CallerReference = resp.HealthCheck.CallerReference
+	} else {
+		ko.Status.CallerReference = nil
+	}
+	if resp.HealthCheck.CloudWatchAlarmConfiguration != nil {
+		f1 := &svcapitypes.CloudWatchAlarmConfiguration{}
+		if resp.HealthCheck.CloudWatchAlarmConfiguration.ComparisonOperator != nil {
+			f1.ComparisonOperator = resp.HealthCheck.CloudWatchAlarmConfiguration.ComparisonOperator
+		}
+		if resp.HealthCheck.CloudWatchAlarmConfiguration.Dimensions != nil {
+			f1f1 := []*svcapitypes.Dimension{}
+			for _, f1f1iter := range resp.HealthCheck.CloudWatchAlarmConfiguration.Dimensions {
+				f1f1elem := &svcapitypes.Dimension{}
+				if f1f1iter.Name != nil {
+					f1f1elem.Name = f1f1iter.Name
+				}
+				if f1f1iter.Value != nil {
+					f1f1elem.Value = f1f1iter.Value
+				}
+				f1f1 = append(f1f1, f1f1elem)
+			}
+			f1.Dimensions = f1f1
+		}
+		if resp.HealthCheck.CloudWatchAlarmConfiguration.EvaluationPeriods != nil {
+			f1.EvaluationPeriods = resp.HealthCheck.CloudWatchAlarmConfiguration.EvaluationPeriods
+		}
+		if resp.HealthCheck.CloudWatchAlarmConfiguration.MetricName != nil {
+			f1.MetricName = resp.HealthCheck.CloudWatchAlarmConfiguration.MetricName
+		}
+		if resp.HealthCheck.CloudWatchAlarmConfiguration.Namespace != nil {
+			f1.Namespace = resp.HealthCheck.CloudWatchAlarmConfiguration.Namespace
+		}
+		if resp.HealthCheck.CloudWatchAlarmConfiguration.Period != nil {
+			f1.Period = resp.HealthCheck.CloudWatchAlarmConfiguration.Period
+		}
+		if resp.HealthCheck.CloudWatchAlarmConfiguration.Statistic != nil {
+			f1.Statistic = resp.HealthCheck.CloudWatchAlarmConfiguration.Statistic
+		}
+		if resp.HealthCheck.CloudWatchAlarmConfiguration.Threshold != nil {
+			f1.Threshold = resp.HealthCheck.CloudWatchAlarmConfiguration.Threshold
+		}
+		ko.Status.CloudWatchAlarmConfiguration = f1
+	} else {
+		ko.Status.CloudWatchAlarmConfiguration = nil
+	}
+	if resp.HealthCheck.HealthCheckConfig != nil {
+		f2 := &svcapitypes.HealthCheckConfig{}
+		if resp.HealthCheck.HealthCheckConfig.AlarmIdentifier != nil {
+			f2f0 := &svcapitypes.AlarmIdentifier{}
+			if resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Name != nil {
+				f2f0.Name = resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Name
+			}
+			if resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Region != nil {
+				f2f0.Region = resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Region
+			}
+			f2.AlarmIdentifier = f2f0
+		}
+		if resp.HealthCheck.HealthCheckConfig.ChildHealthChecks != nil {
+			f2f1 := []*string{}
+			for _, f2f1iter := range resp.HealthCheck.HealthCheckConfig.ChildHealthChecks {
+				var f2f1elem string
+				f2f1elem = *f2f1iter
+				f2f1 = append(f2f1, &f2f1elem)
+			}
+			f2.ChildHealthChecks = f2f1
+		}
+		if resp.HealthCheck.HealthCheckConfig.Disabled != nil {
+			f2.Disabled = resp.HealthCheck.HealthCheckConfig.Disabled
+		}
+		if resp.HealthCheck.HealthCheckConfig.EnableSNI != nil {
+			f2.EnableSNI = resp.HealthCheck.HealthCheckConfig.EnableSNI
+		}
+		if resp.HealthCheck.HealthCheckConfig.FailureThreshold != nil {
+			f2.FailureThreshold = resp.HealthCheck.HealthCheckConfig.FailureThreshold
+		}
+		if resp.HealthCheck.HealthCheckConfig.FullyQualifiedDomainName != nil {
+			f2.FullyQualifiedDomainName = resp.HealthCheck.HealthCheckConfig.FullyQualifiedDomainName
+		}
+		if resp.HealthCheck.HealthCheckConfig.HealthThreshold != nil {
+			f2.HealthThreshold = resp.HealthCheck.HealthCheckConfig.HealthThreshold
+		}
+		if resp.HealthCheck.HealthCheckConfig.IPAddress != nil {
+			f2.IPAddress = resp.HealthCheck.HealthCheckConfig.IPAddress
+		}
+		if resp.HealthCheck.HealthCheckConfig.InsufficientDataHealthStatus != nil {
+			f2.InsufficientDataHealthStatus = resp.HealthCheck.HealthCheckConfig.InsufficientDataHealthStatus
+		}
+		if resp.HealthCheck.HealthCheckConfig.Inverted != nil {
+			f2.Inverted = resp.HealthCheck.HealthCheckConfig.Inverted
+		}
+		if resp.HealthCheck.HealthCheckConfig.MeasureLatency != nil {
+			f2.MeasureLatency = resp.HealthCheck.HealthCheckConfig.MeasureLatency
+		}
+		if resp.HealthCheck.HealthCheckConfig.Port != nil {
+			f2.Port = resp.HealthCheck.HealthCheckConfig.Port
+		}
+		if resp.HealthCheck.HealthCheckConfig.Regions != nil {
+			f2f12 := []*string{}
+			for _, f2f12iter := range resp.HealthCheck.HealthCheckConfig.Regions {
+				var f2f12elem string
+				f2f12elem = *f2f12iter
+				f2f12 = append(f2f12, &f2f12elem)
+			}
+			f2.Regions = f2f12
+		}
+		if resp.HealthCheck.HealthCheckConfig.RequestInterval != nil {
+			f2.RequestInterval = resp.HealthCheck.HealthCheckConfig.RequestInterval
+		}
+		if resp.HealthCheck.HealthCheckConfig.ResourcePath != nil {
+			f2.ResourcePath = resp.HealthCheck.HealthCheckConfig.ResourcePath
+		}
+		if resp.HealthCheck.HealthCheckConfig.RoutingControlArn != nil {
+			f2.RoutingControlARN = resp.HealthCheck.HealthCheckConfig.RoutingControlArn
+		}
+		if resp.HealthCheck.HealthCheckConfig.SearchString != nil {
+			f2.SearchString = resp.HealthCheck.HealthCheckConfig.SearchString
+		}
+		if resp.HealthCheck.HealthCheckConfig.Type != nil {
+			f2.Type = resp.HealthCheck.HealthCheckConfig.Type
+		}
+		ko.Spec.HealthCheckConfig = f2
+	} else {
+		ko.Spec.HealthCheckConfig = nil
+	}
+	if resp.HealthCheck.HealthCheckVersion != nil {
+		ko.Status.HealthCheckVersion = resp.HealthCheck.HealthCheckVersion
+	} else {
+		ko.Status.HealthCheckVersion = nil
+	}
+	if resp.HealthCheck.Id != nil {
+		ko.Status.ID = resp.HealthCheck.Id
+	} else {
+		ko.Status.ID = nil
+	}
+	if resp.HealthCheck.LinkedService != nil {
+		f5 := &svcapitypes.LinkedService{}
+		if resp.HealthCheck.LinkedService.Description != nil {
+			f5.Description = resp.HealthCheck.LinkedService.Description
+		}
+		if resp.HealthCheck.LinkedService.ServicePrincipal != nil {
+			f5.ServicePrincipal = resp.HealthCheck.LinkedService.ServicePrincipal
+		}
+		ko.Status.LinkedService = f5
+	} else {
+		ko.Status.LinkedService = nil
+	}
+
+	rm.setStatusDefaults(ko)
+	return &resource{ko}, nil
+}
+
+// newUpdateRequestPayload returns an SDK-specific struct for the HTTP request
+// payload of the Update API call for the resource
+func (rm *resourceManager) newUpdateRequestPayload(
+	ctx context.Context,
+	r *resource,
+	delta *ackcompare.Delta,
+) (*svcsdk.UpdateHealthCheckInput, error) {
+	res := &svcsdk.UpdateHealthCheckInput{}
+
+	if r.ko.Status.HealthCheckVersion != nil {
+		res.SetHealthCheckVersion(*r.ko.Status.HealthCheckVersion)
+	}
+
+	return res, nil
 }
 
 // sdkDelete deletes the supplied resource in the backend AWS service API
@@ -684,9 +870,7 @@ func (rm *resourceManager) terminalAWSError(err error) bool {
 		return false
 	}
 	switch awsErr.Code() {
-	case "TooManyHealthChecks",
-		"HealthCheckAlreadyExists",
-		"InvalidInput",
+	case "InvalidInput",
 		"HealthCheckInUse":
 		return true
 	default:

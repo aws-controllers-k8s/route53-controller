@@ -1175,6 +1175,11 @@ func (in *RecordSetSpec) DeepCopyInto(out *RecordSetSpec) {
 		*out = new(GeoLocation)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.HealthCheckID != nil {
+		in, out := &in.HealthCheckID, &out.HealthCheckID
+		*out = new(string)
+		**out = **in
+	}
 	if in.HostedZoneID != nil {
 		in, out := &in.HostedZoneID, &out.HostedZoneID
 		*out = new(string)
