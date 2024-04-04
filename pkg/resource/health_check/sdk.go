@@ -732,6 +732,9 @@ func (rm *resourceManager) newUpdateRequestPayload(
 ) (*svcsdk.UpdateHealthCheckInput, error) {
 	res := &svcsdk.UpdateHealthCheckInput{}
 
+	if r.ko.Status.ID != nil {
+		res.SetHealthCheckId(*r.ko.Status.ID)
+	}
 	if r.ko.Status.HealthCheckVersion != nil {
 		res.SetHealthCheckVersion(*r.ko.Status.HealthCheckVersion)
 	}
@@ -766,6 +769,10 @@ func (rm *resourceManager) newDeleteRequestPayload(
 	r *resource,
 ) (*svcsdk.DeleteHealthCheckInput, error) {
 	res := &svcsdk.DeleteHealthCheckInput{}
+
+	if r.ko.Status.ID != nil {
+		res.SetHealthCheckId(*r.ko.Status.ID)
+	}
 
 	return res, nil
 }

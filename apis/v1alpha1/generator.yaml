@@ -184,6 +184,12 @@ resources:
         GetHealthCheck:
           input_fields:
             HealthCheckId: Id
+        UpdateHealthCheck:
+          input_fields:
+            HealthCheckId: Id
+        DeleteHealthCheck:
+          input_fields:
+            HealthCheckId: Id
     exceptions:
       terminal_codes:
       - InvalidInput
