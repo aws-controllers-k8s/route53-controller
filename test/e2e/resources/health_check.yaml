@@ -1,0 +1,13 @@
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: HealthCheck
+metadata:
+  name: $HEALTH_CHECK_NAME
+spec:
+  healthCheckConfig:
+    failureThreshold: 3
+    iPAddress: $IP_ADDR
+    port: 80
+    requestInterval: 30
+  tags:
+    - key: $TAG_KEY
+      value: $TAG_VALUE

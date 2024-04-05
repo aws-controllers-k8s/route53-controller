@@ -39,6 +39,21 @@ class Route53Validator:
         except self.route53_client.exceptions.ClientError:
             pass
         assert found is exists
+    
+    def assert_health_check(self, cr, exists=True):
+        res = None
+        found = False
+        health_check_id = cr["Status"]["id"]
+        ip_address = cr["spec"]["resourceRecords"][0]["value"] if "resourceRecords" in cr["spec"].keys() else None
+        
+        try:
+            res = self.route53_client.get_health_check(HealthCheckId=health_check_id)
+            found = len(res["HealthCheck"]) > 0
+        except self.route53_client.exceptions.ClientError:
+            pass
+        assert found is exists
+        if exists and ip_address:
+            assert ip_address in str(res)
 
     def assert_record_set(self, cr, domain, exists=True):
         res = None
