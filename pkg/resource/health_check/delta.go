@@ -42,6 +42,7 @@ func newResourceDelta(
 		delta.Add("", a, b)
 		return delta
 	}
+	compareTags(delta, a, b)
 
 	if ackcompare.HasNilDifference(a.ko.Spec.HealthCheckConfig, b.ko.Spec.HealthCheckConfig) {
 		delta.Add("Spec.HealthCheckConfig", a.ko.Spec.HealthCheckConfig, b.ko.Spec.HealthCheckConfig)
@@ -184,12 +185,8 @@ func newResourceDelta(
 			}
 		}
 	}
-	if len(a.ko.Spec.Tags) != len(b.ko.Spec.Tags) {
+	if !ackcompare.MapStringStringEqual(ToACKTags(a.ko.Spec.Tags), ToACKTags(b.ko.Spec.Tags)) {
 		delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
-	} else if len(a.ko.Spec.Tags) > 0 {
-		if !reflect.DeepEqual(a.ko.Spec.Tags, b.ko.Spec.Tags) {
-			delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
-		}
 	}
 
 	return delta

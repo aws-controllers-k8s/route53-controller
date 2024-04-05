@@ -282,7 +282,6 @@ func (rm *resourceManager) sdkCreate(
 	if err != nil {
 		return nil, err
 	}
-
 	// You must use a unique CallerReference string every time you submit a
 	// CreateHealthCheck request. CallerReference can be any unique string, for
 	// example, a date/timestamp.
