@@ -200,7 +200,5 @@ resources:
           operation: ChangeTagsForResource
           path: AddTags
     hooks:
-      delta_pre_compare:
-        code: compareTags(delta, a, b)
       sdk_create_post_build_request:
         template_path: hooks/health_check/sdk_create_post_build_request.go.tpl
