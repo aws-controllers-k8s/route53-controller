@@ -93,7 +93,7 @@ class TestHealthCheck:
 
         # Check health check exists in AWS
         route53_validator = Route53Validator(route53_client)
-        route53_validator.assert_health_check(health_check_id)
+        route53_validator.assert_health_check(cr)
 
         # Update health check resource and check that the value is propagated to AWS
         updated = patch_health_check(ref)
@@ -213,4 +213,4 @@ class TestHealthCheck:
         time.sleep(DELETE_WAIT_AFTER_SECONDS)
 
         # Check health check no longer exists in AWS
-        route53_validator.assert_health_check(resource_id, exists=False)
+        route53_validator.assert_health_check(health_check, exists=False)

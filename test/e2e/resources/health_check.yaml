@@ -8,6 +8,7 @@ spec:
     iPAddress: $IP_ADDR
     port: 80
     requestInterval: 30
+    type_: TCP
   tags:
     - key: $TAG_KEY
       value: $TAG_VALUE
