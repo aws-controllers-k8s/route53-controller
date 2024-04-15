@@ -199,6 +199,18 @@ resources:
         from:
           operation: ChangeTagsForResource
           path: AddTags
+        # compare:
+        #   is_ignored: True
     hooks:
+      delta_pre_compare:
+        code: compareTags(delta, a, b)
       sdk_create_post_build_request:
         template_path: hooks/health_check/sdk_create_post_build_request.go.tpl
+      sdk_file_end:
+        template_path: hooks/health_check/sdk_file_end.go.tpl
+      ensure_tags:
+        template_path: hooks/health_check/sdk_ensure_tags.go.tpl
+    # tags:
+    #   ignore: true
+    update_operation:
+      custom_method_name: customUpdateHealthCheck

@@ -291,10 +291,12 @@ func (rm *resourceManager) EnsureTags(
 	defaultTags := ackrt.GetDefaultTags(&rm.cfg, r.ko, md)
 	var existingTags []*svcapitypes.Tag
 	existingTags = r.ko.Spec.Tags
+
 	resourceTags := ToACKTags(existingTags)
 	tags := acktags.Merge(resourceTags, defaultTags)
 	r.ko.Spec.Tags = FromACKTags(tags)
 	return nil
+
 }
 
 // newResourceManager returns a new struct implementing

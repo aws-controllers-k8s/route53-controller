@@ -42,6 +42,7 @@ func newResourceDelta(
 		delta.Add("", a, b)
 		return delta
 	}
+	compareTags(delta, a, b)
 
 	if ackcompare.HasNilDifference(a.ko.Spec.HealthCheckConfig, b.ko.Spec.HealthCheckConfig) {
 		delta.Add("Spec.HealthCheckConfig", a.ko.Spec.HealthCheckConfig, b.ko.Spec.HealthCheckConfig)
