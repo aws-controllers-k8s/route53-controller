@@ -99,7 +99,7 @@ spec:
                     type: string
                   searchString:
                     type: string
-                  type_:
+                  type:
                     type: string
                 type: object
               tags:

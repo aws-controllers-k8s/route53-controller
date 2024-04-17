@@ -63,6 +63,7 @@ def patch_health_check(ref):
     updates = {
         "spec": {
             "healthCheckConfig": {
+                "failureThreshold": 5,
                 "iPAddress": ip_address,
             }
         }
@@ -88,10 +89,11 @@ class TestHealthCheck:
 
         # Update health check resource and check that the value is propagated to AWS
         updated = patch_health_check(ref)
+        assert updated["spec"]["healthCheckConfig"]["failureThreshold"] != cr["spec"]["healthCheckConfig"]["failureThreshold"]
         assert updated["spec"]["healthCheckConfig"]["iPAddress"] != cr["spec"]["healthCheckConfig"]["iPAddress"]
 
         # Check health check has been updated in AWS
-        route53_validator.assert_health_check(cr)
+        route53_validator.assert_health_check(updated)
 
         # Delete k8s resource
         _, deleted = k8s.delete_custom_resource(ref)

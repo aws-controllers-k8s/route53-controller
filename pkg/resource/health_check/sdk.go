@@ -449,6 +449,19 @@ func (rm *resourceManager) sdkCreate(
 	}
 
 	rm.setStatusDefaults(ko)
+	if ko.Status.ID != nil {
+		latest := &resource{}
+		latest.ko = &svcapitypes.HealthCheck{}
+		latest.ko.Status.ID = ko.Status.ID
+
+		// This is create operation. So, no tags are present in HealthCheck.
+		// So, 'latest' is empty except we have copied 'ID' into the status to
+		// make syncTags() happy.
+		if err := rm.syncTags(ctx, desired, latest); err != nil {
+			return nil, err
+		}
+	}
+
 	return &resource{ko}, nil
 }
 
@@ -700,6 +713,27 @@ func (rm *resourceManager) terminalAWSError(err error) bool {
 	default:
 		return false
 	}
+}
+
+// getImmutableFieldChanges returns list of immutable fields from the
+func (rm *resourceManager) getImmutableFieldChanges(
+	delta *ackcompare.Delta,
+) []string {
+	var fields []string
+	if delta.DifferentAt("Spec.HealthCheckConfig.MeasureLatency") {
+		fields = append(fields, "HealthCheckConfig.MeasureLatency")
+	}
+	if delta.DifferentAt("Spec.HealthCheckConfig.RequestInterval") {
+		fields = append(fields, "HealthCheckConfig.RequestInterval")
+	}
+	if delta.DifferentAt("Spec.HealthCheckConfig.RoutingControlArn") {
+		fields = append(fields, "HealthCheckConfig.RoutingControlArn")
+	}
+	if delta.DifferentAt("Spec.HealthCheckConfig.Type") {
+		fields = append(fields, "HealthCheckConfig.Type")
+	}
+
+	return fields
 }
 
 func (rm *resourceManager) newTag(

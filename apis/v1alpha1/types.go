@@ -157,7 +157,7 @@ type HealthCheckConfig struct {
 	ResourcePath                 *string          `json:"resourcePath,omitempty"`
 	RoutingControlARN            *string          `json:"routingControlARN,omitempty"`
 	SearchString                 *string          `json:"searchString,omitempty"`
-	Type                         *string          `json:"type_,omitempty"`
+	Type                         *string          `json:"type,omitempty"`
 }
 
 // A complex type that contains the last failure reason as reported by one Amazon
