@@ -269,13 +269,14 @@ func (rm *resourceManager) customUpdateHealthCheck(
 	}
 
 	rm.setStatusDefaults(ko)
-	updated = &resource{ko}
 
-	if err := rm.syncTags(ctx, desired, updated); err != nil {
-		return nil, err
+	if delta.DifferentAt("Spec.Tags") {
+		if err := rm.syncTags(ctx, desired, latest); err != nil {
+			return nil, err
+		}
 	}
 
-	return updated, nil
+	return &resource{ko}, nil
 }
 
 // syncTags used to keep tags in sync by calling Create and Delete API's
@@ -374,4 +375,46 @@ func compareTags(
 			delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
 		}
 	}
+}
+
+func (rm *resourceManager) setResourceAdditionalFields(
+	ctx context.Context,
+	ko *svcapitypes.HealthCheck,
+) (err error) {
+	if ko.Status.ID != nil {
+		// Get the tags for health_check resource
+		tags_input := svcsdk.ListTagsForResourceInput{}
+		tags_input.SetResourceId(*ko.Status.ID)
+		tags_input.SetResourceType("healthcheck")
+		var tags_resp *svcsdk.ListTagsForResourceOutput
+		tags_resp, err = rm.sdkapi.ListTagsForResourceWithContext(ctx, &tags_input)
+		rm.metrics.RecordAPICall("READ_ONE", "ListTagsForResource", err)
+		if err != nil {
+			if reqErr, ok := ackerr.AWSRequestFailure(err); ok && reqErr.StatusCode() == 404 {
+				return ackerr.NotFound
+			}
+			if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "NoSuchHealthCheck" {
+				return ackerr.NotFound
+			}
+			return err
+		}
+
+		tags := FromRoute53Tags(tags_resp.ResourceTagSet.Tags)
+
+		ko.Spec.Tags = tags
+	} else {
+		ko.Spec.Tags = []*svcapitypes.Tag{}
+	}
+	return nil
+}
+
+func FromRoute53Tags(tags []*svcsdk.Tag) []*svcapitypes.Tag {
+	result := []*svcapitypes.Tag{}
+	for _, tag := range tags {
+		kCopy := *tag.Key
+		vCopy := *tag.Value
+		svcapiTag := svcapitypes.Tag{Key: &kCopy, Value: &vCopy}
+		result = append(result, &svcapiTag)
+	}
+	return result
 }

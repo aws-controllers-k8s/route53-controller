@@ -105,99 +105,108 @@ class TestHealthCheck:
         route53_validator.assert_health_check(cr, exists=False)
 
 
-    # @pytest.mark.resource_data({'tag_key': 'initialtagkey', 'tag_value': 'initialtagvalue'})
-    # def test_crud_tags(self, route53_client, health_check):
-    #     ref, cr = health_check
+    @pytest.mark.resource_data({'tag_key': 'initialtagkey', 'tag_value': 'initialtagvalue'})
+    def test_crud_tags(self, route53_client, health_check):
+        ref, cr = health_check
 
-    #     resource = k8s.get_resource(ref)
-    #     resource_id = cr["status"]["id"]
+        resource = k8s.get_resource(ref)
+        resource_id = cr["status"]["id"]
 
-    #     time.sleep(CREATE_WAIT_AFTER_SECONDS)
+        time.sleep(CREATE_WAIT_AFTER_SECONDS)
 
-    #     # Check health check exists in AWS
-    #     route53_validator = Route53Validator(route53_client)
-    #     route53_validator.assert_health_check(cr)
+        # Check health check exists in AWS
+        route53_validator = Route53Validator(route53_client)
+        route53_validator.assert_health_check(cr)
 
-    #     # Check system and user tags exist for health_check resource
-    #     health_check = route53_validator.list_tags_for_resources(resource_id, "healthcheck")
-    #     initial_tags = {
-    #         "initialtagkey": "initialtagvalue"
-    #     }
+        # Check system and user tags exist for health_check resource
+        health_check = route53_validator.list_tags_for_resources(resource_id, "healthcheck")
+        initial_tags = {
+            "initialtagkey": "initialtagvalue"
+        }
 
-    #     tags.assert_equal(
-    #         expected=initial_tags,
-    #         actual=health_check["Tags"],
-    #     )
+        tags.assert_ack_system_tags(
+            tags=health_check["Tags"],
+        )
+        tags.assert_equal_without_ack_tags(
+            expected=initial_tags,
+            actual=health_check["Tags"],
+        )
 
-    #     # Only user tags should be present in Spec
-    #     assert len(resource["spec"]["tags"]) == 1
-    #     assert resource["spec"]["tags"][0]["key"] == "initialtagkey"
-    #     assert resource["spec"]["tags"][0]["value"] == "initialtagvalue"
+        # Only user tags should be present in Spec
+        assert len(resource["spec"]["tags"]) == 1
+        assert resource["spec"]["tags"][0]["key"] == "initialtagkey"
+        assert resource["spec"]["tags"][0]["value"] == "initialtagvalue"
 
-    #     # Update tags
-    #     update_tags = [
-    #             {
-    #                 "key": "updatedtagkey",
-    #                 "value": "updatedtagvalue",
-    #             }
-    #         ]
+        # Update tags
+        update_tags = [
+                {
+                    "key": "updatedtagkey",
+                    "value": "updatedtagvalue",
+                }
+            ]
 
-    #     # Patch the dhcpOptions, updating the tags with new pair
-    #     updates = {
-    #         "spec": {"tags": update_tags},
-    #     }
+        # Patch the dhcpOptions, updating the tags with new pair
+        updates = {
+            "spec": {"tags": update_tags},
+        }
 
-    #     k8s.patch_custom_resource(ref, updates)
-    #     time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+        k8s.patch_custom_resource(ref, updates)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
 
-    #     # Check resource synced successfully
-    #     assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+        # Check resource synced successfully
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
 
-    #     # Check for updated user tags; system tags should persist
-    #     health_check = route53_validator.list_tags_for_resources(resource_id, "healthcheck")
-    #     updated_tags = {
-    #         "updatedtagkey": "updatedtagvalue"
-    #     }
+        # Check for updated user tags; system tags should persist
+        health_check = route53_validator.list_tags_for_resources(resource_id, "healthcheck")
+        updated_tags = {
+            "updatedtagkey": "updatedtagvalue"
+        }
 
-    #     tags.assert_equal(
-    #         expected=updated_tags,
-    #         actual=health_check["Tags"],
-    #     )
+        tags.assert_ack_system_tags(
+            tags=health_check["Tags"],
+        )
+        tags.assert_equal_without_ack_tags(
+            expected=updated_tags,
+            actual=health_check["Tags"],
+        )
 
-    #     # Only user tags should be present in Spec
-    #     resource = k8s.get_resource(ref)
-    #     assert len(resource["spec"]["tags"]) == 1
-    #     assert resource["spec"]["tags"][0]["key"] == "updatedtagkey"
-    #     assert resource["spec"]["tags"][0]["value"] == "updatedtagvalue"
+        # Only user tags should be present in Spec
+        resource = k8s.get_resource(ref)
+        assert len(resource["spec"]["tags"]) == 1
+        assert resource["spec"]["tags"][0]["key"] == "updatedtagkey"
+        assert resource["spec"]["tags"][0]["value"] == "updatedtagvalue"
 
-    #     # Patch the dhcpOptions resource, deleting the tags
-    #     updates = {
-    #         "spec": {"tags": []},
-    #     }
+        # Patch the dhcpOptions resource, deleting the tags
+        updates = {
+            "spec": {"tags": []},
+        }
 
-    #     k8s.patch_custom_resource(ref, updates)
-    #     time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+        k8s.patch_custom_resource(ref, updates)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
 
-    #     # Check resource synced successfully
-    #     assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+        # Check resource synced successfully
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
 
-    #     # Check for removed user tags; system tags should persist
-    #     health_check = route53_validator.list_tags_for_resources(resource_id, "healthcheck")
+        # Check for removed user tags; system tags should persist
+        health_check = route53_validator.list_tags_for_resources(resource_id, "healthcheck")
 
-    #     tags.assert_equal(
-    #         expected=[],
-    #         actual=health_check["Tags"],
-    #     )
+        tags.assert_ack_system_tags(
+            tags=health_check["Tags"],
+        )
+        tags.assert_equal_without_ack_tags(
+            expected=[],
+            actual=health_check["Tags"],
+        )
 
-    #     # Check user tags are removed from Spec
-    #     resource = k8s.get_resource(ref)
-    #     assert len(resource["spec"]["tags"]) == 0
+        # Check user tags are removed from Spec
+        resource = k8s.get_resource(ref)
+        assert len(resource["spec"]["tags"]) == 0
 
-    #     # Delete k8s resource
-    #     _, deleted = k8s.delete_custom_resource(ref)
-    #     assert deleted is True
+        # Delete k8s resource
+        _, deleted = k8s.delete_custom_resource(ref)
+        assert deleted is True
 
-    #     time.sleep(DELETE_WAIT_AFTER_SECONDS)
+        time.sleep(DELETE_WAIT_AFTER_SECONDS)
 
-    #     # Check health check no longer exists in AWS
-    #     route53_validator.assert_health_check(health_check, exists=False)
+        # Check health check no longer exists in AWS
+        route53_validator.assert_health_check(cr, exists=False)
