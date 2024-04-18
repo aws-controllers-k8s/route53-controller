@@ -28,6 +28,14 @@ var (
 	_ = ackv1alpha1.AWSAccountID("")
 )
 
+// A complex type that identifies the CloudWatch alarm that you want Amazon
+// Route 53 health checkers to use to determine whether the specified health
+// check is healthy.
+type AlarmIdentifier struct {
+	Name   *string `json:"name,omitempty"`
+	Region *string `json:"region,omitempty"`
+}
+
 // Alias resource record sets only: Information about the Amazon Web Services
 // resource, such as a CloudFront distribution or an Amazon S3 bucket, that
 // you want to route traffic to.
@@ -78,6 +86,19 @@ type ChangeInfo struct {
 	SubmittedAt *metav1.Time `json:"submittedAt,omitempty"`
 }
 
+// A complex type that contains information about the CloudWatch alarm that
+// Amazon Route 53 is monitoring for this health check.
+type CloudWatchAlarmConfiguration struct {
+	ComparisonOperator *string      `json:"comparisonOperator,omitempty"`
+	Dimensions         []*Dimension `json:"dimensions,omitempty"`
+	EvaluationPeriods  *int64       `json:"evaluationPeriods,omitempty"`
+	MetricName         *string      `json:"metricName,omitempty"`
+	Namespace          *string      `json:"namespace,omitempty"`
+	Period             *int64       `json:"period,omitempty"`
+	Statistic          *string      `json:"statistic,omitempty"`
+	Threshold          *float64     `json:"threshold,omitempty"`
+}
+
 // A complex type that is an entry in an CidrCollection (https://docs.aws.amazon.com/Route53/latest/APIReference/API_CidrCollection.html)
 // array.
 type CollectionSummary struct {
@@ -90,6 +111,13 @@ type DelegationSet struct {
 	CallerReference *string   `json:"callerReference,omitempty"`
 	ID              *string   `json:"id,omitempty"`
 	NameServers     []*string `json:"nameServers,omitempty"`
+}
+
+// For the metric that the CloudWatch alarm is associated with, a complex type
+// that contains information about one dimension.
+type Dimension struct {
+	Name  *string `json:"name,omitempty"`
+	Value *string `json:"value,omitempty"`
 }
 
 // A complex type that contains information about a geographic location.
@@ -107,10 +135,49 @@ type GeoLocationDetails struct {
 	SubdivisionCode *string `json:"subdivisionCode,omitempty"`
 }
 
+// A complex type that contains information about the health check.
+type HealthCheckConfig struct {
+	// A complex type that identifies the CloudWatch alarm that you want Amazon
+	// Route 53 health checkers to use to determine whether the specified health
+	// check is healthy.
+	AlarmIdentifier              *AlarmIdentifier `json:"alarmIdentifier,omitempty"`
+	ChildHealthChecks            []*string        `json:"childHealthChecks,omitempty"`
+	Disabled                     *bool            `json:"disabled,omitempty"`
+	EnableSNI                    *bool            `json:"enableSNI,omitempty"`
+	FailureThreshold             *int64           `json:"failureThreshold,omitempty"`
+	FullyQualifiedDomainName     *string          `json:"fullyQualifiedDomainName,omitempty"`
+	HealthThreshold              *int64           `json:"healthThreshold,omitempty"`
+	IPAddress                    *string          `json:"iPAddress,omitempty"`
+	InsufficientDataHealthStatus *string          `json:"insufficientDataHealthStatus,omitempty"`
+	Inverted                     *bool            `json:"inverted,omitempty"`
+	MeasureLatency               *bool            `json:"measureLatency,omitempty"`
+	Port                         *int64           `json:"port,omitempty"`
+	Regions                      []*string        `json:"regions,omitempty"`
+	RequestInterval              *int64           `json:"requestInterval,omitempty"`
+	ResourcePath                 *string          `json:"resourcePath,omitempty"`
+	RoutingControlARN            *string          `json:"routingControlARN,omitempty"`
+	SearchString                 *string          `json:"searchString,omitempty"`
+	Type                         *string          `json:"type,omitempty"`
+}
+
+// A complex type that contains the last failure reason as reported by one Amazon
+// Route 53 health checker.
+type HealthCheckObservation struct {
+	IPAddress *string `json:"iPAddress,omitempty"`
+	Region    *string `json:"region,omitempty"`
+}
+
 // A complex type that contains information about one health check that is associated
 // with the current Amazon Web Services account.
-type HealthCheck struct {
-	ID *string `json:"id,omitempty"`
+type HealthCheck_SDK struct {
+	CallerReference *string `json:"callerReference,omitempty"`
+	// A complex type that contains information about the CloudWatch alarm that
+	// Amazon Route 53 is monitoring for this health check.
+	CloudWatchAlarmConfiguration *CloudWatchAlarmConfiguration `json:"cloudWatchAlarmConfiguration,omitempty"`
+	// A complex type that contains information about the health check.
+	HealthCheckConfig  *HealthCheckConfig `json:"healthCheckConfig,omitempty"`
+	HealthCheckVersion *int64             `json:"healthCheckVersion,omitempty"`
+	ID                 *string            `json:"id,omitempty"`
 	// If a health check or hosted zone was created by another service, LinkedService
 	// is a complex type that describes the service that created the resource. When
 	// a resource is created by another service, you can't edit or delete it using
