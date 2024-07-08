@@ -2,6 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - common
+  - bases/route53.services.k8s.aws_cidrcollections.yaml
   - bases/route53.services.k8s.aws_healthchecks.yaml
   - bases/route53.services.k8s.aws_hostedzones.yaml
   - bases/route53.services.k8s.aws_recordsets.yaml

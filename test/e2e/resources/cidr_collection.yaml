@@ -1,0 +1,15 @@
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: CIDRCollection
+metadata:
+  name: $CIDR_COLLECTION_NAME
+spec:
+  name: $CIDR_COLLECTION_NAME
+  locations:
+  - locationName: location-1
+    cidrList: 
+    - 192.168.0.0/24
+    - 192.168.1.0/24
+  - locationName: location-2
+    cidrList: 
+    - 192.168.10.0/24
+    - 192.168.11.0/24
