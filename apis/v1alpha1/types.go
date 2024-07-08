@@ -50,9 +50,25 @@ type AliasTarget struct {
 	HostedZoneID         *string `json:"hostedZoneID,omitempty"`
 }
 
+// A complex type that lists the CIDR blocks.
+type CIDRBlockSummary struct {
+	CIDRBlock    *string `json:"cidrBlock,omitempty"`
+	LocationName *string `json:"locationName,omitempty"`
+}
+
+// A complex type that contains information about the CIDR collection change.
+type CIDRCollectionChange struct {
+	Action       *string   `json:"action,omitempty"`
+	CIDRList     []*string `json:"cidrList,omitempty"`
+	LocationName *string   `json:"locationName,omitempty"`
+}
+
 // A complex type that identifies a CIDR collection.
-type CIDRCollection struct {
-	ID *string `json:"id,omitempty"`
+type CIDRCollection_SDK struct {
+	ARN     *string `json:"arn,omitempty"`
+	ID      *string `json:"id,omitempty"`
+	Name    *string `json:"name,omitempty"`
+	Version *int64  `json:"version,omitempty"`
 }
 
 // The object that is specified in resource record set object when you are linking
@@ -102,7 +118,10 @@ type CloudWatchAlarmConfiguration struct {
 // A complex type that is an entry in an CidrCollection (https://docs.aws.amazon.com/Route53/latest/APIReference/API_CidrCollection.html)
 // array.
 type CollectionSummary struct {
-	ID *string `json:"id,omitempty"`
+	ARN     *string `json:"arn,omitempty"`
+	ID      *string `json:"id,omitempty"`
+	Name    *string `json:"name,omitempty"`
+	Version *int64  `json:"version,omitempty"`
 }
 
 // A complex type that lists the name servers in a delegation set, as well as
