@@ -95,6 +95,10 @@ func (r *resource) SetIdentifiers(identifier *ackv1alpha1.AWSIdentifiers) error 
 		r.ko.Spec.HostedZoneID = &f0
 	}
 
+	f1, f1ok := identifier.AdditionalKeys["recordType"]
+	if f1ok {
+		r.ko.Spec.RecordType = &f1
+	}
 	return nil
 }
 
