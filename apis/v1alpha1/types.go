@@ -147,7 +147,7 @@ type HealthCheckConfig struct {
 	FailureThreshold             *int64           `json:"failureThreshold,omitempty"`
 	FullyQualifiedDomainName     *string          `json:"fullyQualifiedDomainName,omitempty"`
 	HealthThreshold              *int64           `json:"healthThreshold,omitempty"`
-	IPAddress                    *string          `json:"iPAddress,omitempty"`
+	IPAddress                    *string          `json:"ipAddress,omitempty"`
 	InsufficientDataHealthStatus *string          `json:"insufficientDataHealthStatus,omitempty"`
 	Inverted                     *bool            `json:"inverted,omitempty"`
 	MeasureLatency               *bool            `json:"measureLatency,omitempty"`
@@ -163,7 +163,7 @@ type HealthCheckConfig struct {
 // A complex type that contains the last failure reason as reported by one Amazon
 // Route 53 health checker.
 type HealthCheckObservation struct {
-	IPAddress *string `json:"iPAddress,omitempty"`
+	IPAddress *string `json:"ipAddress,omitempty"`
 	Region    *string `json:"region,omitempty"`
 }
 
