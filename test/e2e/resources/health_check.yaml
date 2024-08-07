@@ -5,7 +5,7 @@ metadata:
 spec:
   healthCheckConfig:
     failureThreshold: 3
-    iPAddress: $IP_ADDR
+    ipAddress: $IP_ADDR
     port: 80
     requestInterval: 30
     type: TCP

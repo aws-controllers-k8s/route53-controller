@@ -56,12 +56,11 @@ func (rm *resourceManager) ResolveReferences(
 	apiReader client.Reader,
 	res acktypes.AWSResource,
 ) (acktypes.AWSResource, bool, error) {
-	namespace := res.MetaObject().GetNamespace()
 	ko := rm.concreteResource(res).ko
 
 	resourceHasReferences := false
 	err := validateReferenceFields(ko)
-	if fieldHasReferences, err := rm.resolveReferenceForHostedZoneID(ctx, apiReader, namespace, ko); err != nil {
+	if fieldHasReferences, err := rm.resolveReferenceForHostedZoneID(ctx, apiReader, ko); err != nil {
 		return &resource{ko}, (resourceHasReferences || fieldHasReferences), err
 	} else {
 		resourceHasReferences = resourceHasReferences || fieldHasReferences
@@ -90,7 +89,6 @@ func validateReferenceFields(ko *svcapitypes.RecordSet) error {
 func (rm *resourceManager) resolveReferenceForHostedZoneID(
 	ctx context.Context,
 	apiReader client.Reader,
-	namespace string,
 	ko *svcapitypes.RecordSet,
 ) (hasReferences bool, err error) {
 	if ko.Spec.HostedZoneRef != nil && ko.Spec.HostedZoneRef.From != nil {
@@ -98,6 +96,10 @@ func (rm *resourceManager) resolveReferenceForHostedZoneID(
 		arr := ko.Spec.HostedZoneRef.From
 		if arr.Name == nil || *arr.Name == "" {
 			return hasReferences, fmt.Errorf("provided resource reference is nil or empty: HostedZoneRef")
+		}
+		namespace := ko.ObjectMeta.GetNamespace()
+		if arr.Namespace != nil && *arr.Namespace != "" {
+			namespace = *arr.Namespace
 		}
 		obj := &svcapitypes.HostedZone{}
 		if err := getReferencedResourceState_HostedZone(ctx, apiReader, obj, *arr.Name, namespace); err != nil {
