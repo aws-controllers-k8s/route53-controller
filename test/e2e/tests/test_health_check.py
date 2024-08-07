@@ -64,7 +64,7 @@ def patch_health_check(ref):
         "spec": {
             "healthCheckConfig": {
                 "failureThreshold": 5,
-                "iPAddress": ip_address,
+                "ipAddress": ip_address,
             }
         }
     }
@@ -90,7 +90,7 @@ class TestHealthCheck:
         # Update health check resource and check that the value is propagated to AWS
         updated = patch_health_check(ref)
         assert updated["spec"]["healthCheckConfig"]["failureThreshold"] != cr["spec"]["healthCheckConfig"]["failureThreshold"]
-        assert updated["spec"]["healthCheckConfig"]["iPAddress"] != cr["spec"]["healthCheckConfig"]["iPAddress"]
+        assert updated["spec"]["healthCheckConfig"]["ipAddress"] != cr["spec"]["healthCheckConfig"]["ipAddress"]
 
         # Check health check has been updated in AWS
         route53_validator.assert_health_check(updated)
