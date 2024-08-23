@@ -115,6 +115,11 @@ func (rm *resourceManager) customUpdateCidrCollection(
 	}
 	oldLocations := rm.oldLocations(latest)
 
+	// Do not update Locations if nothing changed
+	if reflect.DeepEqual(newLocations, oldLocations) {
+		return &resource{ko}, nil
+	}
+
 	// First remove old Locations as there is no api call for updating cidr Collection locations
 	if oldLocations != nil {
 		input.SetChanges(oldLocations)
