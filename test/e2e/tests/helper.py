@@ -31,6 +31,35 @@ class Route53Validator:
         except self.route53_client.exceptions.ClientError as e:
             return None
 
+    def assert_cidr_collection(self, cr, exists=True):
+        res = None
+        found = False
+        cidr_collection_id = cr["status"].get("collection", None).get("id", None)
+        cidr_collection_name = cr["spec"].get("name", None)
+        cidr_collection_locations = cr["spec"].get("locations", None)
+
+        if cidr_collection_id is None:
+            return
+
+        try:
+            res = self.route53_client.list_cidr_collections()
+            res_cidr_collections = [cidr_collection for cidr_collection in res["CidrCollections"] if cidr_collection["Id"] == cidr_collection_id]
+            found = len(res_cidr_collections) == 1
+        except self.route53_client.exceptions.ClientError:
+            pass
+        assert found is exists
+        if exists and cidr_collection_id and cidr_collection_name:
+            assert cidr_collection_name in str(res_cidr_collections)
+
+        try:
+            res = self.route53_client.list_cidr_blocks(CollectionId=cidr_collection_id)
+        except self.route53_client.exceptions.ClientError:
+            pass
+        if exists and cidr_collection_locations is not None:
+            for location in cidr_collection_locations:
+                assert location["locationName"] in str(res)
+                assert location["cidrList"][0] in str(res)
+
     def assert_hosted_zone(self, hosted_zone_id: str, exists=True):
         found = False
         try:

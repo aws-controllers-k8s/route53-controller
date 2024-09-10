@@ -9,6 +9,7 @@ rules:
 - apiGroups:
   - route53.services.k8s.aws
   resources:
+  - cidrcollections
   - healthchecks
   - hostedzones
   - recordsets
@@ -23,6 +24,7 @@ rules:
 - apiGroups:
   - route53.services.k8s.aws
   resources:
+  - cidrcollections
   - healthchecks
   - hostedzones
   - recordsets

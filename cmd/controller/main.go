@@ -39,6 +39,7 @@ import (
 	svcresource "github.com/aws-controllers-k8s/route53-controller/pkg/resource"
 	svcsdk "github.com/aws/aws-sdk-go/service/route53"
 
+	_ "github.com/aws-controllers-k8s/route53-controller/pkg/resource/cidr_collection"
 	_ "github.com/aws-controllers-k8s/route53-controller/pkg/resource/health_check"
 	_ "github.com/aws-controllers-k8s/route53-controller/pkg/resource/hosted_zone"
 	_ "github.com/aws-controllers-k8s/route53-controller/pkg/resource/record_set"

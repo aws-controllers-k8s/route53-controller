@@ -3,9 +3,10 @@ ignore:
   - ChangeResourceRecordSetsOutput.ChangeInfo.Comment
   - CreateHostedZoneInput.CallerReference
   - CreateHealthCheckInput.CallerReference
+  - CreateCidrCollectionInput.CallerReference
   operations: null
   resource_names:
-  - CidrCollection
+  # - CidrCollection
   # - HealthCheck
   # - HostedZone
   - KeySigningKey
@@ -15,7 +16,6 @@ ignore:
   - TrafficPolicyInstance
   - TrafficPolicyVersion
   - VPCAssociationAuthorization
-  - CidrCollection
   shape_names: null
 model_name: route53
 operations:
@@ -30,6 +30,26 @@ operations:
     - List
     resource_name:
       RecordSet
+  CreateCidrCollection:
+    operation_type:
+    - Create
+    resource_name:
+      CidrCollection
+  ChangeCidrCollection:
+    operation_type:
+    - Update
+    resource_name:
+      CidrCollection
+  DeleteCidrCollection:
+    operation_type:
+    - Delete
+    resource_name:
+      CidrCollection
+  ListCidrCollections:
+    operation_type:
+    - List
+    resource_name:
+      CidrCollection
   CreateHostedZone:
     output_wrapper_field_path: HostedZone
   GetHostedZone:
@@ -151,6 +171,54 @@ resources:
       ignore: true
     update_operation:
       custom_method_name: customUpdateRecordSet
+  CidrCollection:
+    renames:
+      operations:
+        ChangeCidrCollection:
+          input_fields:
+            Changes: Locations
+    exceptions:
+      terminal_codes:
+      - InvalidInput
+      - CidrCollectionAlreadyExists
+      - CidrCollectionInUse
+      - CidrCollectionVersionMismatch
+      - NoSuchCidrCollection
+      - CidrBlockInUse
+    fields:
+      Name:
+        from:
+          operation: CreateCidrCollection
+          path: Name
+        is_required: true
+        is_primary_key: true
+        is_immutable: true
+      CollectionVersion:
+        is_required: false
+      Locations:
+        from:
+          operation: ChangeCidrCollection
+          path: Changes
+        is_required: true
+      CallerReference:
+        is_read_only: true
+        type: "*string"
+    hooks:
+      delta_pre_compare:
+        code: compareCustom(delta, a, b)
+      sdk_create_post_build_request:
+        template_path: hooks/cidr_collection/sdk_create_post_build_request.go.tpl
+      sdk_create_post_set_output:
+        template_path: hooks/cidr_collection/sdk_create_post_set_output.go.tpl
+      sdk_delete_post_build_request:
+        template_path: hooks/cidr_collection/sdk_delete_post_build_request.go.tpl
+      sdk_read_many_pre_set_output:
+        template_path: hooks/cidr_collection/sdk_read_many_pre_set_output.go.tpl
+    # This resource does not have tags
+    tags:
+      ignore: true
+    update_operation:
+      custom_method_name: customUpdateCidrCollection
   HostedZone:
     exceptions:
       terminal_codes:
