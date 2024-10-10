@@ -55,6 +55,7 @@ rules:
   - ""
   resources:
   - configmaps
+  - secrets
   verbs:
   - get
   - list
@@ -69,57 +70,10 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - get
-  - list
-  - patch
-  - watch
-- apiGroups:
   - route53.services.k8s.aws
   resources:
   - healthchecks
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - route53.services.k8s.aws
-  resources:
-  - healthchecks/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - route53.services.k8s.aws
-  resources:
   - hostedzones
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - route53.services.k8s.aws
-  resources:
-  - hostedzones/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - route53.services.k8s.aws
-  resources:
   - recordsets
   verbs:
   - create
@@ -132,6 +86,8 @@ rules:
 - apiGroups:
   - route53.services.k8s.aws
   resources:
+  - healthchecks/status
+  - hostedzones/status
   - recordsets/status
   verbs:
   - get
@@ -141,25 +97,6 @@ rules:
   - services.k8s.aws
   resources:
   - adoptedresources
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - services.k8s.aws
-  resources:
-  - adoptedresources/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - services.k8s.aws
-  resources:
   - fieldexports
   verbs:
   - create
@@ -172,6 +109,7 @@ rules:
 - apiGroups:
   - services.k8s.aws
   resources:
+  - adoptedresources/status
   - fieldexports/status
   verbs:
   - get
