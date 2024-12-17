@@ -115,6 +115,10 @@ func (r *resource) PopulateResourceFromAnnotation(fields map[string]string) erro
 		r.ko.Spec.HostedZoneID = &f0
 	}
 
+	if f1, f1ok := fields["recordType"]; f1ok {
+		r.ko.Spec.RecordType = &f1
+	}
+
 	return nil
 }
 
