@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 
@@ -28,8 +29,10 @@ import (
 	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-	"github.com/aws/aws-sdk-go/aws"
-	svcsdk "github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/route53"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	smithy "github.com/aws/smithy-go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -40,8 +43,7 @@ import (
 var (
 	_ = &metav1.Time{}
 	_ = strings.ToLower("")
-	_ = &aws.JSONValue{}
-	_ = &svcsdk.Route53{}
+	_ = &svcsdk.Client{}
 	_ = &svcapitypes.HealthCheck{}
 	_ = ackv1alpha1.AWSAccountID("")
 	_ = &ackerr.NotFound
@@ -49,6 +51,7 @@ var (
 	_ = &reflect.Value{}
 	_ = fmt.Sprintf("")
 	_ = &ackrequeue.NoRequeue{}
+	_ = &aws.Config{}
 )
 
 // sdkFind returns SDK-specific information about a supplied resource
@@ -74,13 +77,11 @@ func (rm *resourceManager) sdkFind(
 	}
 
 	var resp *svcsdk.GetHealthCheckOutput
-	resp, err = rm.sdkapi.GetHealthCheckWithContext(ctx, input)
+	resp, err = rm.sdkapi.GetHealthCheck(ctx, input)
 	rm.metrics.RecordAPICall("READ_ONE", "GetHealthCheck", err)
 	if err != nil {
-		if reqErr, ok := ackerr.AWSRequestFailure(err); ok && reqErr.StatusCode() == 404 {
-			return nil, ackerr.NotFound
-		}
-		if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "NoSuchHealthCheck" {
+		var awsErr smithy.APIError
+		if errors.As(err, &awsErr) && awsErr.ErrorCode() == "NoSuchHealthCheck" {
 			return nil, ackerr.NotFound
 		}
 		return nil, err
@@ -97,8 +98,8 @@ func (rm *resourceManager) sdkFind(
 	}
 	if resp.HealthCheck.CloudWatchAlarmConfiguration != nil {
 		f1 := &svcapitypes.CloudWatchAlarmConfiguration{}
-		if resp.HealthCheck.CloudWatchAlarmConfiguration.ComparisonOperator != nil {
-			f1.ComparisonOperator = resp.HealthCheck.CloudWatchAlarmConfiguration.ComparisonOperator
+		if resp.HealthCheck.CloudWatchAlarmConfiguration.ComparisonOperator != "" {
+			f1.ComparisonOperator = aws.String(string(resp.HealthCheck.CloudWatchAlarmConfiguration.ComparisonOperator))
 		}
 		if resp.HealthCheck.CloudWatchAlarmConfiguration.Dimensions != nil {
 			f1f1 := []*svcapitypes.Dimension{}
@@ -115,7 +116,8 @@ func (rm *resourceManager) sdkFind(
 			f1.Dimensions = f1f1
 		}
 		if resp.HealthCheck.CloudWatchAlarmConfiguration.EvaluationPeriods != nil {
-			f1.EvaluationPeriods = resp.HealthCheck.CloudWatchAlarmConfiguration.EvaluationPeriods
+			evaluationPeriodsCopy := int64(*resp.HealthCheck.CloudWatchAlarmConfiguration.EvaluationPeriods)
+			f1.EvaluationPeriods = &evaluationPeriodsCopy
 		}
 		if resp.HealthCheck.CloudWatchAlarmConfiguration.MetricName != nil {
 			f1.MetricName = resp.HealthCheck.CloudWatchAlarmConfiguration.MetricName
@@ -124,10 +126,11 @@ func (rm *resourceManager) sdkFind(
 			f1.Namespace = resp.HealthCheck.CloudWatchAlarmConfiguration.Namespace
 		}
 		if resp.HealthCheck.CloudWatchAlarmConfiguration.Period != nil {
-			f1.Period = resp.HealthCheck.CloudWatchAlarmConfiguration.Period
+			periodCopy := int64(*resp.HealthCheck.CloudWatchAlarmConfiguration.Period)
+			f1.Period = &periodCopy
 		}
-		if resp.HealthCheck.CloudWatchAlarmConfiguration.Statistic != nil {
-			f1.Statistic = resp.HealthCheck.CloudWatchAlarmConfiguration.Statistic
+		if resp.HealthCheck.CloudWatchAlarmConfiguration.Statistic != "" {
+			f1.Statistic = aws.String(string(resp.HealthCheck.CloudWatchAlarmConfiguration.Statistic))
 		}
 		if resp.HealthCheck.CloudWatchAlarmConfiguration.Threshold != nil {
 			f1.Threshold = resp.HealthCheck.CloudWatchAlarmConfiguration.Threshold
@@ -143,19 +146,13 @@ func (rm *resourceManager) sdkFind(
 			if resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Name != nil {
 				f2f0.Name = resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Name
 			}
-			if resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Region != nil {
-				f2f0.Region = resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Region
+			if resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Region != "" {
+				f2f0.Region = aws.String(string(resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Region))
 			}
 			f2.AlarmIdentifier = f2f0
 		}
 		if resp.HealthCheck.HealthCheckConfig.ChildHealthChecks != nil {
-			f2f1 := []*string{}
-			for _, f2f1iter := range resp.HealthCheck.HealthCheckConfig.ChildHealthChecks {
-				var f2f1elem string
-				f2f1elem = *f2f1iter
-				f2f1 = append(f2f1, &f2f1elem)
-			}
-			f2.ChildHealthChecks = f2f1
+			f2.ChildHealthChecks = aws.StringSlice(resp.HealthCheck.HealthCheckConfig.ChildHealthChecks)
 		}
 		if resp.HealthCheck.HealthCheckConfig.Disabled != nil {
 			f2.Disabled = resp.HealthCheck.HealthCheckConfig.Disabled
@@ -164,19 +161,21 @@ func (rm *resourceManager) sdkFind(
 			f2.EnableSNI = resp.HealthCheck.HealthCheckConfig.EnableSNI
 		}
 		if resp.HealthCheck.HealthCheckConfig.FailureThreshold != nil {
-			f2.FailureThreshold = resp.HealthCheck.HealthCheckConfig.FailureThreshold
+			failureThresholdCopy := int64(*resp.HealthCheck.HealthCheckConfig.FailureThreshold)
+			f2.FailureThreshold = &failureThresholdCopy
 		}
 		if resp.HealthCheck.HealthCheckConfig.FullyQualifiedDomainName != nil {
 			f2.FullyQualifiedDomainName = resp.HealthCheck.HealthCheckConfig.FullyQualifiedDomainName
 		}
 		if resp.HealthCheck.HealthCheckConfig.HealthThreshold != nil {
-			f2.HealthThreshold = resp.HealthCheck.HealthCheckConfig.HealthThreshold
+			healthThresholdCopy := int64(*resp.HealthCheck.HealthCheckConfig.HealthThreshold)
+			f2.HealthThreshold = &healthThresholdCopy
 		}
 		if resp.HealthCheck.HealthCheckConfig.IPAddress != nil {
 			f2.IPAddress = resp.HealthCheck.HealthCheckConfig.IPAddress
 		}
-		if resp.HealthCheck.HealthCheckConfig.InsufficientDataHealthStatus != nil {
-			f2.InsufficientDataHealthStatus = resp.HealthCheck.HealthCheckConfig.InsufficientDataHealthStatus
+		if resp.HealthCheck.HealthCheckConfig.InsufficientDataHealthStatus != "" {
+			f2.InsufficientDataHealthStatus = aws.String(string(resp.HealthCheck.HealthCheckConfig.InsufficientDataHealthStatus))
 		}
 		if resp.HealthCheck.HealthCheckConfig.Inverted != nil {
 			f2.Inverted = resp.HealthCheck.HealthCheckConfig.Inverted
@@ -185,19 +184,21 @@ func (rm *resourceManager) sdkFind(
 			f2.MeasureLatency = resp.HealthCheck.HealthCheckConfig.MeasureLatency
 		}
 		if resp.HealthCheck.HealthCheckConfig.Port != nil {
-			f2.Port = resp.HealthCheck.HealthCheckConfig.Port
+			portCopy := int64(*resp.HealthCheck.HealthCheckConfig.Port)
+			f2.Port = &portCopy
 		}
 		if resp.HealthCheck.HealthCheckConfig.Regions != nil {
 			f2f12 := []*string{}
 			for _, f2f12iter := range resp.HealthCheck.HealthCheckConfig.Regions {
-				var f2f12elem string
-				f2f12elem = *f2f12iter
-				f2f12 = append(f2f12, &f2f12elem)
+				var f2f12elem *string
+				f2f12elem = aws.String(string(f2f12iter))
+				f2f12 = append(f2f12, f2f12elem)
 			}
 			f2.Regions = f2f12
 		}
 		if resp.HealthCheck.HealthCheckConfig.RequestInterval != nil {
-			f2.RequestInterval = resp.HealthCheck.HealthCheckConfig.RequestInterval
+			requestIntervalCopy := int64(*resp.HealthCheck.HealthCheckConfig.RequestInterval)
+			f2.RequestInterval = &requestIntervalCopy
 		}
 		if resp.HealthCheck.HealthCheckConfig.ResourcePath != nil {
 			f2.ResourcePath = resp.HealthCheck.HealthCheckConfig.ResourcePath
@@ -208,8 +209,8 @@ func (rm *resourceManager) sdkFind(
 		if resp.HealthCheck.HealthCheckConfig.SearchString != nil {
 			f2.SearchString = resp.HealthCheck.HealthCheckConfig.SearchString
 		}
-		if resp.HealthCheck.HealthCheckConfig.Type != nil {
-			f2.Type = resp.HealthCheck.HealthCheckConfig.Type
+		if resp.HealthCheck.HealthCheckConfig.Type != "" {
+			f2.Type = aws.String(string(resp.HealthCheck.HealthCheckConfig.Type))
 		}
 		ko.Spec.HealthCheckConfig = f2
 	} else {
@@ -263,7 +264,7 @@ func (rm *resourceManager) newDescribeRequestPayload(
 	res := &svcsdk.GetHealthCheckInput{}
 
 	if r.ko.Status.ID != nil {
-		res.SetHealthCheckId(*r.ko.Status.ID)
+		res.HealthCheckId = r.ko.Status.ID
 	}
 
 	return res, nil
@@ -290,11 +291,11 @@ func (rm *resourceManager) sdkCreate(
 	// example, a date/timestamp.
 	// TODO: Name is not sufficient, since a failed request cannot be retried.
 	// We might need to import the `time` package into `sdk.go`
-	input.SetCallerReference(getCallerReference())
+	input.CallerReference = aws.String(getCallerReference())
 
 	var resp *svcsdk.CreateHealthCheckOutput
 	_ = resp
-	resp, err = rm.sdkapi.CreateHealthCheckWithContext(ctx, input)
+	resp, err = rm.sdkapi.CreateHealthCheck(ctx, input)
 	rm.metrics.RecordAPICall("CREATE", "CreateHealthCheck", err)
 	if err != nil {
 		return nil, err
@@ -310,8 +311,8 @@ func (rm *resourceManager) sdkCreate(
 	}
 	if resp.HealthCheck.CloudWatchAlarmConfiguration != nil {
 		f1 := &svcapitypes.CloudWatchAlarmConfiguration{}
-		if resp.HealthCheck.CloudWatchAlarmConfiguration.ComparisonOperator != nil {
-			f1.ComparisonOperator = resp.HealthCheck.CloudWatchAlarmConfiguration.ComparisonOperator
+		if resp.HealthCheck.CloudWatchAlarmConfiguration.ComparisonOperator != "" {
+			f1.ComparisonOperator = aws.String(string(resp.HealthCheck.CloudWatchAlarmConfiguration.ComparisonOperator))
 		}
 		if resp.HealthCheck.CloudWatchAlarmConfiguration.Dimensions != nil {
 			f1f1 := []*svcapitypes.Dimension{}
@@ -328,7 +329,8 @@ func (rm *resourceManager) sdkCreate(
 			f1.Dimensions = f1f1
 		}
 		if resp.HealthCheck.CloudWatchAlarmConfiguration.EvaluationPeriods != nil {
-			f1.EvaluationPeriods = resp.HealthCheck.CloudWatchAlarmConfiguration.EvaluationPeriods
+			evaluationPeriodsCopy := int64(*resp.HealthCheck.CloudWatchAlarmConfiguration.EvaluationPeriods)
+			f1.EvaluationPeriods = &evaluationPeriodsCopy
 		}
 		if resp.HealthCheck.CloudWatchAlarmConfiguration.MetricName != nil {
 			f1.MetricName = resp.HealthCheck.CloudWatchAlarmConfiguration.MetricName
@@ -337,10 +339,11 @@ func (rm *resourceManager) sdkCreate(
 			f1.Namespace = resp.HealthCheck.CloudWatchAlarmConfiguration.Namespace
 		}
 		if resp.HealthCheck.CloudWatchAlarmConfiguration.Period != nil {
-			f1.Period = resp.HealthCheck.CloudWatchAlarmConfiguration.Period
+			periodCopy := int64(*resp.HealthCheck.CloudWatchAlarmConfiguration.Period)
+			f1.Period = &periodCopy
 		}
-		if resp.HealthCheck.CloudWatchAlarmConfiguration.Statistic != nil {
-			f1.Statistic = resp.HealthCheck.CloudWatchAlarmConfiguration.Statistic
+		if resp.HealthCheck.CloudWatchAlarmConfiguration.Statistic != "" {
+			f1.Statistic = aws.String(string(resp.HealthCheck.CloudWatchAlarmConfiguration.Statistic))
 		}
 		if resp.HealthCheck.CloudWatchAlarmConfiguration.Threshold != nil {
 			f1.Threshold = resp.HealthCheck.CloudWatchAlarmConfiguration.Threshold
@@ -356,19 +359,13 @@ func (rm *resourceManager) sdkCreate(
 			if resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Name != nil {
 				f2f0.Name = resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Name
 			}
-			if resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Region != nil {
-				f2f0.Region = resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Region
+			if resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Region != "" {
+				f2f0.Region = aws.String(string(resp.HealthCheck.HealthCheckConfig.AlarmIdentifier.Region))
 			}
 			f2.AlarmIdentifier = f2f0
 		}
 		if resp.HealthCheck.HealthCheckConfig.ChildHealthChecks != nil {
-			f2f1 := []*string{}
-			for _, f2f1iter := range resp.HealthCheck.HealthCheckConfig.ChildHealthChecks {
-				var f2f1elem string
-				f2f1elem = *f2f1iter
-				f2f1 = append(f2f1, &f2f1elem)
-			}
-			f2.ChildHealthChecks = f2f1
+			f2.ChildHealthChecks = aws.StringSlice(resp.HealthCheck.HealthCheckConfig.ChildHealthChecks)
 		}
 		if resp.HealthCheck.HealthCheckConfig.Disabled != nil {
 			f2.Disabled = resp.HealthCheck.HealthCheckConfig.Disabled
@@ -377,19 +374,21 @@ func (rm *resourceManager) sdkCreate(
 			f2.EnableSNI = resp.HealthCheck.HealthCheckConfig.EnableSNI
 		}
 		if resp.HealthCheck.HealthCheckConfig.FailureThreshold != nil {
-			f2.FailureThreshold = resp.HealthCheck.HealthCheckConfig.FailureThreshold
+			failureThresholdCopy := int64(*resp.HealthCheck.HealthCheckConfig.FailureThreshold)
+			f2.FailureThreshold = &failureThresholdCopy
 		}
 		if resp.HealthCheck.HealthCheckConfig.FullyQualifiedDomainName != nil {
 			f2.FullyQualifiedDomainName = resp.HealthCheck.HealthCheckConfig.FullyQualifiedDomainName
 		}
 		if resp.HealthCheck.HealthCheckConfig.HealthThreshold != nil {
-			f2.HealthThreshold = resp.HealthCheck.HealthCheckConfig.HealthThreshold
+			healthThresholdCopy := int64(*resp.HealthCheck.HealthCheckConfig.HealthThreshold)
+			f2.HealthThreshold = &healthThresholdCopy
 		}
 		if resp.HealthCheck.HealthCheckConfig.IPAddress != nil {
 			f2.IPAddress = resp.HealthCheck.HealthCheckConfig.IPAddress
 		}
-		if resp.HealthCheck.HealthCheckConfig.InsufficientDataHealthStatus != nil {
-			f2.InsufficientDataHealthStatus = resp.HealthCheck.HealthCheckConfig.InsufficientDataHealthStatus
+		if resp.HealthCheck.HealthCheckConfig.InsufficientDataHealthStatus != "" {
+			f2.InsufficientDataHealthStatus = aws.String(string(resp.HealthCheck.HealthCheckConfig.InsufficientDataHealthStatus))
 		}
 		if resp.HealthCheck.HealthCheckConfig.Inverted != nil {
 			f2.Inverted = resp.HealthCheck.HealthCheckConfig.Inverted
@@ -398,19 +397,21 @@ func (rm *resourceManager) sdkCreate(
 			f2.MeasureLatency = resp.HealthCheck.HealthCheckConfig.MeasureLatency
 		}
 		if resp.HealthCheck.HealthCheckConfig.Port != nil {
-			f2.Port = resp.HealthCheck.HealthCheckConfig.Port
+			portCopy := int64(*resp.HealthCheck.HealthCheckConfig.Port)
+			f2.Port = &portCopy
 		}
 		if resp.HealthCheck.HealthCheckConfig.Regions != nil {
 			f2f12 := []*string{}
 			for _, f2f12iter := range resp.HealthCheck.HealthCheckConfig.Regions {
-				var f2f12elem string
-				f2f12elem = *f2f12iter
-				f2f12 = append(f2f12, &f2f12elem)
+				var f2f12elem *string
+				f2f12elem = aws.String(string(f2f12iter))
+				f2f12 = append(f2f12, f2f12elem)
 			}
 			f2.Regions = f2f12
 		}
 		if resp.HealthCheck.HealthCheckConfig.RequestInterval != nil {
-			f2.RequestInterval = resp.HealthCheck.HealthCheckConfig.RequestInterval
+			requestIntervalCopy := int64(*resp.HealthCheck.HealthCheckConfig.RequestInterval)
+			f2.RequestInterval = &requestIntervalCopy
 		}
 		if resp.HealthCheck.HealthCheckConfig.ResourcePath != nil {
 			f2.ResourcePath = resp.HealthCheck.HealthCheckConfig.ResourcePath
@@ -421,8 +422,8 @@ func (rm *resourceManager) sdkCreate(
 		if resp.HealthCheck.HealthCheckConfig.SearchString != nil {
 			f2.SearchString = resp.HealthCheck.HealthCheckConfig.SearchString
 		}
-		if resp.HealthCheck.HealthCheckConfig.Type != nil {
-			f2.Type = resp.HealthCheck.HealthCheckConfig.Type
+		if resp.HealthCheck.HealthCheckConfig.Type != "" {
+			f2.Type = aws.String(string(resp.HealthCheck.HealthCheckConfig.Type))
 		}
 		ko.Spec.HealthCheckConfig = f2
 	} else {
@@ -477,81 +478,95 @@ func (rm *resourceManager) newCreateRequestPayload(
 	res := &svcsdk.CreateHealthCheckInput{}
 
 	if r.ko.Spec.HealthCheckConfig != nil {
-		f0 := &svcsdk.HealthCheckConfig{}
+		f0 := &svcsdktypes.HealthCheckConfig{}
 		if r.ko.Spec.HealthCheckConfig.AlarmIdentifier != nil {
-			f0f0 := &svcsdk.AlarmIdentifier{}
+			f0f0 := &svcsdktypes.AlarmIdentifier{}
 			if r.ko.Spec.HealthCheckConfig.AlarmIdentifier.Name != nil {
-				f0f0.SetName(*r.ko.Spec.HealthCheckConfig.AlarmIdentifier.Name)
+				f0f0.Name = r.ko.Spec.HealthCheckConfig.AlarmIdentifier.Name
 			}
 			if r.ko.Spec.HealthCheckConfig.AlarmIdentifier.Region != nil {
-				f0f0.SetRegion(*r.ko.Spec.HealthCheckConfig.AlarmIdentifier.Region)
+				f0f0.Region = svcsdktypes.CloudWatchRegion(*r.ko.Spec.HealthCheckConfig.AlarmIdentifier.Region)
 			}
-			f0.SetAlarmIdentifier(f0f0)
+			f0.AlarmIdentifier = f0f0
 		}
 		if r.ko.Spec.HealthCheckConfig.ChildHealthChecks != nil {
-			f0f1 := []*string{}
-			for _, f0f1iter := range r.ko.Spec.HealthCheckConfig.ChildHealthChecks {
-				var f0f1elem string
-				f0f1elem = *f0f1iter
-				f0f1 = append(f0f1, &f0f1elem)
-			}
-			f0.SetChildHealthChecks(f0f1)
+			f0.ChildHealthChecks = aws.ToStringSlice(r.ko.Spec.HealthCheckConfig.ChildHealthChecks)
 		}
 		if r.ko.Spec.HealthCheckConfig.Disabled != nil {
-			f0.SetDisabled(*r.ko.Spec.HealthCheckConfig.Disabled)
+			f0.Disabled = r.ko.Spec.HealthCheckConfig.Disabled
 		}
 		if r.ko.Spec.HealthCheckConfig.EnableSNI != nil {
-			f0.SetEnableSNI(*r.ko.Spec.HealthCheckConfig.EnableSNI)
+			f0.EnableSNI = r.ko.Spec.HealthCheckConfig.EnableSNI
 		}
 		if r.ko.Spec.HealthCheckConfig.FailureThreshold != nil {
-			f0.SetFailureThreshold(*r.ko.Spec.HealthCheckConfig.FailureThreshold)
+			failureThresholdCopy0 := *r.ko.Spec.HealthCheckConfig.FailureThreshold
+			if failureThresholdCopy0 > math.MaxInt32 || failureThresholdCopy0 < math.MinInt32 {
+				return nil, fmt.Errorf("error: field FailureThreshold is of type int32")
+			}
+			failureThresholdCopy := int32(failureThresholdCopy0)
+			f0.FailureThreshold = &failureThresholdCopy
 		}
 		if r.ko.Spec.HealthCheckConfig.FullyQualifiedDomainName != nil {
-			f0.SetFullyQualifiedDomainName(*r.ko.Spec.HealthCheckConfig.FullyQualifiedDomainName)
+			f0.FullyQualifiedDomainName = r.ko.Spec.HealthCheckConfig.FullyQualifiedDomainName
 		}
 		if r.ko.Spec.HealthCheckConfig.HealthThreshold != nil {
-			f0.SetHealthThreshold(*r.ko.Spec.HealthCheckConfig.HealthThreshold)
+			healthThresholdCopy0 := *r.ko.Spec.HealthCheckConfig.HealthThreshold
+			if healthThresholdCopy0 > math.MaxInt32 || healthThresholdCopy0 < math.MinInt32 {
+				return nil, fmt.Errorf("error: field HealthThreshold is of type int32")
+			}
+			healthThresholdCopy := int32(healthThresholdCopy0)
+			f0.HealthThreshold = &healthThresholdCopy
 		}
 		if r.ko.Spec.HealthCheckConfig.IPAddress != nil {
-			f0.SetIPAddress(*r.ko.Spec.HealthCheckConfig.IPAddress)
+			f0.IPAddress = r.ko.Spec.HealthCheckConfig.IPAddress
 		}
 		if r.ko.Spec.HealthCheckConfig.InsufficientDataHealthStatus != nil {
-			f0.SetInsufficientDataHealthStatus(*r.ko.Spec.HealthCheckConfig.InsufficientDataHealthStatus)
+			f0.InsufficientDataHealthStatus = svcsdktypes.InsufficientDataHealthStatus(*r.ko.Spec.HealthCheckConfig.InsufficientDataHealthStatus)
 		}
 		if r.ko.Spec.HealthCheckConfig.Inverted != nil {
-			f0.SetInverted(*r.ko.Spec.HealthCheckConfig.Inverted)
+			f0.Inverted = r.ko.Spec.HealthCheckConfig.Inverted
 		}
 		if r.ko.Spec.HealthCheckConfig.MeasureLatency != nil {
-			f0.SetMeasureLatency(*r.ko.Spec.HealthCheckConfig.MeasureLatency)
+			f0.MeasureLatency = r.ko.Spec.HealthCheckConfig.MeasureLatency
 		}
 		if r.ko.Spec.HealthCheckConfig.Port != nil {
-			f0.SetPort(*r.ko.Spec.HealthCheckConfig.Port)
+			portCopy0 := *r.ko.Spec.HealthCheckConfig.Port
+			if portCopy0 > math.MaxInt32 || portCopy0 < math.MinInt32 {
+				return nil, fmt.Errorf("error: field Port is of type int32")
+			}
+			portCopy := int32(portCopy0)
+			f0.Port = &portCopy
 		}
 		if r.ko.Spec.HealthCheckConfig.Regions != nil {
-			f0f12 := []*string{}
+			f0f12 := []svcsdktypes.HealthCheckRegion{}
 			for _, f0f12iter := range r.ko.Spec.HealthCheckConfig.Regions {
 				var f0f12elem string
-				f0f12elem = *f0f12iter
-				f0f12 = append(f0f12, &f0f12elem)
+				f0f12elem = string(*f0f12iter)
+				f0f12 = append(f0f12, svcsdktypes.HealthCheckRegion(f0f12elem))
 			}
-			f0.SetRegions(f0f12)
+			f0.Regions = f0f12
 		}
 		if r.ko.Spec.HealthCheckConfig.RequestInterval != nil {
-			f0.SetRequestInterval(*r.ko.Spec.HealthCheckConfig.RequestInterval)
+			requestIntervalCopy0 := *r.ko.Spec.HealthCheckConfig.RequestInterval
+			if requestIntervalCopy0 > math.MaxInt32 || requestIntervalCopy0 < math.MinInt32 {
+				return nil, fmt.Errorf("error: field RequestInterval is of type int32")
+			}
+			requestIntervalCopy := int32(requestIntervalCopy0)
+			f0.RequestInterval = &requestIntervalCopy
 		}
 		if r.ko.Spec.HealthCheckConfig.ResourcePath != nil {
-			f0.SetResourcePath(*r.ko.Spec.HealthCheckConfig.ResourcePath)
+			f0.ResourcePath = r.ko.Spec.HealthCheckConfig.ResourcePath
 		}
 		if r.ko.Spec.HealthCheckConfig.RoutingControlARN != nil {
-			f0.SetRoutingControlArn(*r.ko.Spec.HealthCheckConfig.RoutingControlARN)
+			f0.RoutingControlArn = r.ko.Spec.HealthCheckConfig.RoutingControlARN
 		}
 		if r.ko.Spec.HealthCheckConfig.SearchString != nil {
-			f0.SetSearchString(*r.ko.Spec.HealthCheckConfig.SearchString)
+			f0.SearchString = r.ko.Spec.HealthCheckConfig.SearchString
 		}
 		if r.ko.Spec.HealthCheckConfig.Type != nil {
-			f0.SetType(*r.ko.Spec.HealthCheckConfig.Type)
+			f0.Type = svcsdktypes.HealthCheckType(*r.ko.Spec.HealthCheckConfig.Type)
 		}
-		res.SetHealthCheckConfig(f0)
+		res.HealthCheckConfig = f0
 	}
 
 	return res, nil
@@ -584,7 +599,7 @@ func (rm *resourceManager) sdkDelete(
 	}
 	var resp *svcsdk.DeleteHealthCheckOutput
 	_ = resp
-	resp, err = rm.sdkapi.DeleteHealthCheckWithContext(ctx, input)
+	resp, err = rm.sdkapi.DeleteHealthCheck(ctx, input)
 	rm.metrics.RecordAPICall("DELETE", "DeleteHealthCheck", err)
 	return nil, err
 }
@@ -597,7 +612,7 @@ func (rm *resourceManager) newDeleteRequestPayload(
 	res := &svcsdk.DeleteHealthCheckInput{}
 
 	if r.ko.Status.ID != nil {
-		res.SetHealthCheckId(*r.ko.Status.ID)
+		res.HealthCheckId = r.ko.Status.ID
 	}
 
 	return res, nil
@@ -705,11 +720,12 @@ func (rm *resourceManager) terminalAWSError(err error) bool {
 	if err == nil {
 		return false
 	}
-	awsErr, ok := ackerr.AWSError(err)
-	if !ok {
+
+	var terminalErr smithy.APIError
+	if !errors.As(err, &terminalErr) {
 		return false
 	}
-	switch awsErr.Code() {
+	switch terminalErr.ErrorCode() {
 	case "InvalidInput",
 		"HealthCheckInUse":
 		return true
@@ -741,13 +757,13 @@ func (rm *resourceManager) getImmutableFieldChanges(
 
 func (rm *resourceManager) newTag(
 	c svcapitypes.Tag,
-) *svcsdk.Tag {
-	res := &svcsdk.Tag{}
+) svcsdktypes.Tag {
+	res := svcsdktypes.Tag{}
 	if c.Key != nil {
-		res.SetKey(*c.Key)
+		res.Key = c.Key
 	}
 	if c.Value != nil {
-		res.SetValue(*c.Value)
+		res.Value = c.Value
 	}
 
 	return res

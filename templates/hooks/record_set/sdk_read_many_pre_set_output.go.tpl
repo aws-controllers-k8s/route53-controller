@@ -3,7 +3,7 @@
 	// it just consumes starting values for HostedZoneID, Name, RecordType, and SetIdentifier
 	// from an alphabetically sorted list. As an example, if we are filtering for 'A' records,
 	// ListResourceRecordSets could still return 'CNAME' records.
-	var recordSets []*svcsdk.ResourceRecordSet
+	var recordSets []svcsdktypes.ResourceRecordSet
 	for _, elem := range resp.ResourceRecordSets {
 		if elem.Name != nil {
 			// ListResourceRecordSets returns the full DNS name, so we need to reconstruct
@@ -40,7 +40,7 @@
 		}
 
 		// RecordTypes are required, so discard records that don't have them.
-		if elem.Type == nil || (*elem.Type != *ko.Spec.RecordType) {
+		if elem.Type == "" || (string(elem.Type) != *ko.Spec.RecordType) {
 			continue
 		}
 

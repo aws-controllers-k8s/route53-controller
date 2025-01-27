@@ -12,8 +12,8 @@
 {{- $healthCheckRefName = "Tag" }}
 func (rm *resourceManager) new{{ $healthCheckRefName }}(
 	    c svcapitypes.{{ $healthCheckRefName }},
-) *svcsdk.{{ $healthCheckRefName }} {
-	res := &svcsdk.{{ $healthCheckRefName }}{}
+) svcsdktypes.{{ $healthCheckRefName }} {
+	res := svcsdktypes.{{ $healthCheckRefName }}{}
 {{ GoCodeSetSDKForStruct $CRD "" "res" $healthCheckRef "" "c" 1 }}
 	return res
 }

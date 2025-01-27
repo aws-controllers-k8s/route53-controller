@@ -2,6 +2,7 @@ package record_set
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,7 +11,9 @@ import (
 	ackcondition "github.com/aws-controllers-k8s/runtime/pkg/condition"
 	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-	svcsdk "github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/route53"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -19,15 +22,15 @@ import (
 // with values set by the resource's corresponding spec field.
 func (rm *resourceManager) newResourceRecords(
 	r *resource,
-) []*svcsdk.ResourceRecord {
+) []svcsdktypes.ResourceRecord {
 	if r.ko.Spec.ResourceRecords == nil {
 		return nil
 	}
 
-	res := make([]*svcsdk.ResourceRecord, len(r.ko.Spec.ResourceRecords))
+	res := make([]svcsdktypes.ResourceRecord, len(r.ko.Spec.ResourceRecords))
 	for i, rr := range r.ko.Spec.ResourceRecords {
 		value := *rr.Value
-		res[i] = &svcsdk.ResourceRecord{
+		res[i] = svcsdktypes.ResourceRecord{
 			Value: &value,
 		}
 	}
@@ -38,20 +41,20 @@ func (rm *resourceManager) newResourceRecords(
 // with values set by the resource's corresponding spec field.
 func (rm *resourceManager) newAliasTarget(
 	r *resource,
-) *svcsdk.AliasTarget {
+) *svcsdktypes.AliasTarget {
 	if r.ko.Spec.AliasTarget == nil {
 		return nil
 	}
 
-	res := &svcsdk.AliasTarget{}
+	res := &svcsdktypes.AliasTarget{}
 	if r.ko.Spec.AliasTarget.DNSName != nil {
-		res.SetDNSName(*r.ko.Spec.AliasTarget.DNSName)
+		res.DNSName = r.ko.Spec.AliasTarget.DNSName
 	}
 	if r.ko.Spec.AliasTarget.EvaluateTargetHealth != nil {
-		res.SetEvaluateTargetHealth(*r.ko.Spec.AliasTarget.EvaluateTargetHealth)
+		res.EvaluateTargetHealth = *r.ko.Spec.AliasTarget.EvaluateTargetHealth
 	}
 	if r.ko.Spec.AliasTarget.HostedZoneID != nil {
-		res.SetHostedZoneId(*r.ko.Spec.AliasTarget.HostedZoneID)
+		res.HostedZoneId = r.ko.Spec.AliasTarget.HostedZoneID
 	}
 	return res
 }
@@ -60,17 +63,17 @@ func (rm *resourceManager) newAliasTarget(
 // with values set by the resource's corresponding spec field.
 func (rm *resourceManager) newCIDRRoutingConfig(
 	r *resource,
-) *svcsdk.CidrRoutingConfig {
+) *svcsdktypes.CidrRoutingConfig {
 	if r.ko.Spec.CIDRRoutingConfig == nil {
 		return nil
 	}
 
-	res := &svcsdk.CidrRoutingConfig{}
+	res := &svcsdktypes.CidrRoutingConfig{}
 	if r.ko.Spec.CIDRRoutingConfig.CollectionID != nil {
-		res.SetCollectionId(*r.ko.Spec.CIDRRoutingConfig.CollectionID)
+		res.CollectionId = r.ko.Spec.CIDRRoutingConfig.CollectionID
 	}
 	if r.ko.Spec.CIDRRoutingConfig.LocationName != nil {
-		res.SetLocationName(*r.ko.Spec.CIDRRoutingConfig.LocationName)
+		res.LocationName = r.ko.Spec.CIDRRoutingConfig.LocationName
 	}
 	return res
 }
@@ -79,20 +82,20 @@ func (rm *resourceManager) newCIDRRoutingConfig(
 // with values set by the resource's corresponding spec field.
 func (rm *resourceManager) newGeoLocation(
 	r *resource,
-) *svcsdk.GeoLocation {
+) *svcsdktypes.GeoLocation {
 	if r.ko.Spec.GeoLocation == nil {
 		return nil
 	}
 
-	res := &svcsdk.GeoLocation{}
+	res := &svcsdktypes.GeoLocation{}
 	if r.ko.Spec.GeoLocation.ContinentCode != nil {
-		res.SetContinentCode(*r.ko.Spec.GeoLocation.ContinentCode)
+		res.ContinentCode = r.ko.Spec.GeoLocation.ContinentCode
 	}
 	if r.ko.Spec.GeoLocation.CountryCode != nil {
-		res.SetCountryCode(*r.ko.Spec.GeoLocation.CountryCode)
+		res.CountryCode = r.ko.Spec.GeoLocation.CountryCode
 	}
 	if r.ko.Spec.GeoLocation.SubdivisionCode != nil {
-		res.SetSubdivisionCode(*r.ko.Spec.GeoLocation.SubdivisionCode)
+		res.SubdivisionCode = r.ko.Spec.GeoLocation.SubdivisionCode
 	}
 	return res
 }
@@ -102,8 +105,8 @@ func (rm *resourceManager) newGeoLocation(
 func (rm *resourceManager) newResourceRecordSet(
 	ctx context.Context,
 	r *resource,
-) (*svcsdk.ResourceRecordSet, error) {
-	res := &svcsdk.ResourceRecordSet{}
+) (*svcsdktypes.ResourceRecordSet, error) {
+	res := &svcsdktypes.ResourceRecordSet{}
 
 	domain, err := rm.getHostedZoneDomain(ctx, r)
 	if err != nil {
@@ -112,47 +115,47 @@ func (rm *resourceManager) newResourceRecordSet(
 	dnsName := rm.getDNSName(r, domain)
 
 	// Set required fields for the ChangeResourceRecordSets API
-	res.SetName(dnsName)
-	res.SetType(*r.ko.Spec.RecordType)
+	res.Name = &dnsName
+	res.Type = svcsdktypes.RRType(*r.ko.Spec.RecordType)
 
 	// Set optional fields
 	if r.ko.Spec.Failover != nil {
-		res.SetFailover(*r.ko.Spec.Failover)
+		res.Failover = svcsdktypes.ResourceRecordSetFailover(*r.ko.Spec.Failover)
 	}
 	if r.ko.Spec.HealthCheckID != nil {
-		res.SetHealthCheckId(*r.ko.Spec.HealthCheckID)
+		res.HealthCheckId = r.ko.Spec.HealthCheckID
 	}
 	if r.ko.Spec.MultiValueAnswer != nil {
-		res.SetMultiValueAnswer(*r.ko.Spec.MultiValueAnswer)
+		res.MultiValueAnswer = r.ko.Spec.MultiValueAnswer
 	}
 	if r.ko.Spec.Region != nil {
-		res.SetRegion(*r.ko.Spec.Region)
+		res.Region = svcsdktypes.ResourceRecordSetRegion(*r.ko.Spec.Region)
 	}
 	if r.ko.Spec.SetIdentifier != nil {
-		res.SetSetIdentifier(*r.ko.Spec.SetIdentifier)
+		res.SetIdentifier = r.ko.Spec.SetIdentifier
 	}
 	if r.ko.Spec.TTL != nil {
-		res.SetTTL(*r.ko.Spec.TTL)
+		res.TTL = r.ko.Spec.TTL
 	}
 	if r.ko.Spec.Weight != nil {
-		res.SetWeight(*r.ko.Spec.Weight)
+		res.Weight = r.ko.Spec.Weight
 	}
 
 	// Set resource records if available
 	resourceRecords := rm.newResourceRecords(r)
-	res.SetResourceRecords(resourceRecords)
+	res.ResourceRecords = resourceRecords
 
 	// Set alias target if available
 	aliasTarget := rm.newAliasTarget(r)
-	res.SetAliasTarget(aliasTarget)
+	res.AliasTarget = aliasTarget
 
 	// Set CIDR routing config if available
 	cidrRoutingConfig := rm.newCIDRRoutingConfig(r)
-	res.SetCidrRoutingConfig(cidrRoutingConfig)
+	res.CidrRoutingConfig = cidrRoutingConfig
 
 	// Set geolocation if available
 	geoLocation := rm.newGeoLocation(r)
-	res.SetGeoLocation(geoLocation)
+	res.GeoLocation = geoLocation
 
 	return res, nil
 }
@@ -160,14 +163,14 @@ func (rm *resourceManager) newResourceRecordSet(
 // newChangeBatch returns a pointer to a ChangeBatch object
 // with each field set by the resource's corresponding spec field.
 func (rm *resourceManager) newChangeBatch(
-	action string,
-	recordSet *svcsdk.ResourceRecordSet,
-) *svcsdk.ChangeBatch {
-	change := &svcsdk.Change{}
-	change.SetAction(action)
-	change.SetResourceRecordSet(recordSet)
-	return &svcsdk.ChangeBatch{
-		Changes: []*svcsdk.Change{change},
+	action svcsdktypes.ChangeAction,
+	recordSet *svcsdktypes.ResourceRecordSet,
+) *svcsdktypes.ChangeBatch {
+	change := svcsdktypes.Change{}
+	change.Action = svcsdktypes.ChangeAction(action)
+	change.ResourceRecordSet = recordSet
+	return &svcsdktypes.ChangeBatch{
+		Changes: []svcsdktypes.Change{change},
 	}
 }
 
@@ -196,18 +199,18 @@ func (rm *resourceManager) customUpdateRecordSet(
 	ko := desired.ko.DeepCopy()
 
 	input := &svcsdk.ChangeResourceRecordSetsInput{}
-	input.SetHostedZoneId(*desired.ko.Spec.HostedZoneID)
+	input.HostedZoneId = desired.ko.Spec.HostedZoneID
 
-	action := svcsdk.ChangeActionUpsert
+	action := svcsdktypes.ChangeActionUpsert
 	recordSet, err := rm.newResourceRecordSet(ctx, desired)
 	if err != nil {
 		return nil, err
 	}
 	changeBatch := rm.newChangeBatch(action, recordSet)
-	input.SetChangeBatch(changeBatch)
+	input.ChangeBatch = changeBatch
 
 	var resp *svcsdk.ChangeResourceRecordSetsOutput
-	resp, err = rm.sdkapi.ChangeResourceRecordSetsWithContext(ctx, input)
+	resp, err = rm.sdkapi.ChangeResourceRecordSets(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "ChangeResourceRecordSets", err)
 
 	// The previous change batch is no longer representative of the newly applied change.
@@ -223,8 +226,8 @@ func (rm *resourceManager) customUpdateRecordSet(
 	} else {
 		ko.Status.ID = nil
 	}
-	if resp.ChangeInfo.Status != nil {
-		ko.Status.Status = resp.ChangeInfo.Status
+	if resp.ChangeInfo.Status != "" {
+		ko.Status.Status = aws.String(string(resp.ChangeInfo.Status))
 	} else {
 		ko.Status.Status = nil
 	}
@@ -241,7 +244,7 @@ func (rm *resourceManager) customUpdateRecordSet(
 	if err != nil {
 		return nil, err
 	}
-	if ko.Status.Status == nil || *ko.Status.Status == svcsdk.ChangeStatusPending {
+	if ko.Status.Status == nil || svcsdktypes.ChangeStatus(*ko.Status.Status) == svcsdktypes.ChangeStatusPending {
 		ackcondition.SetSynced(&resource{ko}, corev1.ConditionFalse, nil, nil)
 	}
 
@@ -270,15 +273,15 @@ func (rm *resourceManager) syncStatus(
 	}
 
 	changeInput := &svcsdk.GetChangeInput{}
-	changeInput.SetId(*ko.Status.ID)
+	changeInput.Id = ko.Status.ID
 
-	resp, err := rm.sdkapi.GetChangeWithContext(ctx, changeInput)
+	resp, err := rm.sdkapi.GetChange(ctx, changeInput)
 	rm.metrics.RecordAPICall("READ_ONE", "GetChange", err)
 	if err != nil {
 		return err
 	}
 
-	status := *resp.ChangeInfo.Status
+	status := string(resp.ChangeInfo.Status)
 	ko.Status.Status = &status
 	return nil
 }
@@ -298,13 +301,14 @@ func (rm *resourceManager) getHostedZoneDomain(
 
 	input := &svcsdk.GetHostedZoneInput{}
 	if r.ko.Spec.HostedZoneID != nil {
-		input.SetId(*r.ko.Spec.HostedZoneID)
+		input.Id = r.ko.Spec.HostedZoneID
 	}
 
-	resp, err := rm.sdkapi.GetHostedZoneWithContext(ctx, input)
+	resp, err := rm.sdkapi.GetHostedZone(ctx, input)
 	rm.metrics.RecordAPICall("READ_ONE", "GetHostedZone", err)
 	if err != nil {
-		if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "NoSuchHostedZone" {
+		var notFound *svcsdktypes.NoSuchHostedZone
+		if errors.As(err, &notFound) {
 			return "", ackerr.NotFound
 		}
 		return "", err

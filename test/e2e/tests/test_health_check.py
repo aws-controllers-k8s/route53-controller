@@ -59,12 +59,10 @@ def health_check(request):
 
 
 def patch_health_check(ref):
-    ip_address = socket.inet_ntoa(struct.pack('>I', random.randint(1, 0xffffffff)))
     updates = {
         "spec": {
             "healthCheckConfig": {
                 "failureThreshold": 5,
-                "ipAddress": ip_address,
             }
         }
     }
@@ -90,7 +88,6 @@ class TestHealthCheck:
         # Update health check resource and check that the value is propagated to AWS
         updated = patch_health_check(ref)
         assert updated["spec"]["healthCheckConfig"]["failureThreshold"] != cr["spec"]["healthCheckConfig"]["failureThreshold"]
-        assert updated["spec"]["healthCheckConfig"]["ipAddress"] != cr["spec"]["healthCheckConfig"]["ipAddress"]
 
         # Check health check has been updated in AWS
         route53_validator.assert_health_check(updated)

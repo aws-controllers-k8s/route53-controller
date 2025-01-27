@@ -12,8 +12,8 @@
 {{- $hostedZoneRefName = "Tag" }}
 func (rm *resourceManager) new{{ $hostedZoneRefName }}(
 	    c svcapitypes.{{ $hostedZoneRefName }},
-) *svcsdk.{{ $hostedZoneRefName }} {
-	res := &svcsdk.{{ $hostedZoneRefName }}{}
+) svcsdktypes.{{ $hostedZoneRefName }} {
+	res := svcsdktypes.{{ $hostedZoneRefName }}{}
 {{ GoCodeSetSDKForStruct $CRD "" "res" $hostedZoneRef "" "c" 1 }}
 	return res
 }

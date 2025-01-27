@@ -28,8 +28,10 @@ import (
 	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-	"github.com/aws/aws-sdk-go/aws"
-	svcsdk "github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/route53"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	smithy "github.com/aws/smithy-go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -40,8 +42,7 @@ import (
 var (
 	_ = &metav1.Time{}
 	_ = strings.ToLower("")
-	_ = &aws.JSONValue{}
-	_ = &svcsdk.Route53{}
+	_ = &svcsdk.Client{}
 	_ = &svcapitypes.HostedZone{}
 	_ = ackv1alpha1.AWSAccountID("")
 	_ = &ackerr.NotFound
@@ -49,6 +50,7 @@ var (
 	_ = &reflect.Value{}
 	_ = fmt.Sprintf("")
 	_ = &ackrequeue.NoRequeue{}
+	_ = &aws.Config{}
 )
 
 // sdkFind returns SDK-specific information about a supplied resource
@@ -74,13 +76,11 @@ func (rm *resourceManager) sdkFind(
 	}
 
 	var resp *svcsdk.GetHostedZoneOutput
-	resp, err = rm.sdkapi.GetHostedZoneWithContext(ctx, input)
+	resp, err = rm.sdkapi.GetHostedZone(ctx, input)
 	rm.metrics.RecordAPICall("READ_ONE", "GetHostedZone", err)
 	if err != nil {
-		if reqErr, ok := ackerr.AWSRequestFailure(err); ok && reqErr.StatusCode() == 404 {
-			return nil, ackerr.NotFound
-		}
-		if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "NoSuchHostedZone" {
+		var awsErr smithy.APIError
+		if errors.As(err, &awsErr) && awsErr.ErrorCode() == "NoSuchHostedZone" {
 			return nil, ackerr.NotFound
 		}
 		return nil, err
@@ -100,9 +100,7 @@ func (rm *resourceManager) sdkFind(
 		if resp.HostedZone.Config.Comment != nil {
 			f1.Comment = resp.HostedZone.Config.Comment
 		}
-		if resp.HostedZone.Config.PrivateZone != nil {
-			f1.PrivateZone = resp.HostedZone.Config.PrivateZone
-		}
+		f1.PrivateZone = &resp.HostedZone.Config.PrivateZone
 		ko.Status.Config = f1
 	} else {
 		ko.Status.Config = nil
@@ -160,7 +158,7 @@ func (rm *resourceManager) newDescribeRequestPayload(
 	res := &svcsdk.GetHostedZoneInput{}
 
 	if r.ko.Status.ID != nil {
-		res.SetId(*r.ko.Status.ID)
+		res.Id = r.ko.Status.ID
 	}
 
 	return res, nil
@@ -187,11 +185,11 @@ func (rm *resourceManager) sdkCreate(
 	// example, a date/timestamp.
 	// TODO: Name is not sufficient, since a failed request cannot be retried.
 	// We might need to import the `time` package into `sdk.go`
-	input.SetCallerReference(getCallerReference(desired.ko))
+	input.CallerReference = aws.String(getCallerReference(desired.ko))
 
 	var resp *svcsdk.CreateHostedZoneOutput
 	_ = resp
-	resp, err = rm.sdkapi.CreateHostedZoneWithContext(ctx, input)
+	resp, err = rm.sdkapi.CreateHostedZone(ctx, input)
 	rm.metrics.RecordAPICall("CREATE", "CreateHostedZone", err)
 	if err != nil {
 		return nil, err
@@ -210,9 +208,7 @@ func (rm *resourceManager) sdkCreate(
 		if resp.HostedZone.Config.Comment != nil {
 			f1.Comment = resp.HostedZone.Config.Comment
 		}
-		if resp.HostedZone.Config.PrivateZone != nil {
-			f1.PrivateZone = resp.HostedZone.Config.PrivateZone
-		}
+		f1.PrivateZone = &resp.HostedZone.Config.PrivateZone
 		ko.Status.Config = f1
 	} else {
 		ko.Status.Config = nil
@@ -271,30 +267,30 @@ func (rm *resourceManager) newCreateRequestPayload(
 	res := &svcsdk.CreateHostedZoneInput{}
 
 	if r.ko.Spec.DelegationSetID != nil {
-		res.SetDelegationSetId(*r.ko.Spec.DelegationSetID)
+		res.DelegationSetId = r.ko.Spec.DelegationSetID
 	}
 	if r.ko.Spec.HostedZoneConfig != nil {
-		f1 := &svcsdk.HostedZoneConfig{}
+		f1 := &svcsdktypes.HostedZoneConfig{}
 		if r.ko.Spec.HostedZoneConfig.Comment != nil {
-			f1.SetComment(*r.ko.Spec.HostedZoneConfig.Comment)
+			f1.Comment = r.ko.Spec.HostedZoneConfig.Comment
 		}
 		if r.ko.Spec.HostedZoneConfig.PrivateZone != nil {
-			f1.SetPrivateZone(*r.ko.Spec.HostedZoneConfig.PrivateZone)
+			f1.PrivateZone = *r.ko.Spec.HostedZoneConfig.PrivateZone
 		}
-		res.SetHostedZoneConfig(f1)
+		res.HostedZoneConfig = f1
 	}
 	if r.ko.Spec.Name != nil {
-		res.SetName(*r.ko.Spec.Name)
+		res.Name = r.ko.Spec.Name
 	}
 	if r.ko.Spec.VPC != nil {
-		f3 := &svcsdk.VPC{}
+		f3 := &svcsdktypes.VPC{}
 		if r.ko.Spec.VPC.VPCID != nil {
-			f3.SetVPCId(*r.ko.Spec.VPC.VPCID)
+			f3.VPCId = r.ko.Spec.VPC.VPCID
 		}
 		if r.ko.Spec.VPC.VPCRegion != nil {
-			f3.SetVPCRegion(*r.ko.Spec.VPC.VPCRegion)
+			f3.VPCRegion = svcsdktypes.VPCRegion(*r.ko.Spec.VPC.VPCRegion)
 		}
-		res.SetVPC(f3)
+		res.VPC = f3
 	}
 
 	return res, nil
@@ -327,7 +323,7 @@ func (rm *resourceManager) sdkDelete(
 	}
 	var resp *svcsdk.DeleteHostedZoneOutput
 	_ = resp
-	resp, err = rm.sdkapi.DeleteHostedZoneWithContext(ctx, input)
+	resp, err = rm.sdkapi.DeleteHostedZone(ctx, input)
 	rm.metrics.RecordAPICall("DELETE", "DeleteHostedZone", err)
 	return nil, err
 }
@@ -340,7 +336,7 @@ func (rm *resourceManager) newDeleteRequestPayload(
 	res := &svcsdk.DeleteHostedZoneInput{}
 
 	if r.ko.Status.ID != nil {
-		res.SetId(*r.ko.Status.ID)
+		res.Id = r.ko.Status.ID
 	}
 
 	return res, nil
@@ -448,11 +444,12 @@ func (rm *resourceManager) terminalAWSError(err error) bool {
 	if err == nil {
 		return false
 	}
-	awsErr, ok := ackerr.AWSError(err)
-	if !ok {
+
+	var terminalErr smithy.APIError
+	if !errors.As(err, &terminalErr) {
 		return false
 	}
-	switch awsErr.Code() {
+	switch terminalErr.ErrorCode() {
 	case "DelegationSetNotReusable",
 		"InvalidDomainName",
 		"InvalidInput",
@@ -465,13 +462,13 @@ func (rm *resourceManager) terminalAWSError(err error) bool {
 
 func (rm *resourceManager) newTag(
 	c svcapitypes.Tag,
-) *svcsdk.Tag {
-	res := &svcsdk.Tag{}
+) svcsdktypes.Tag {
+	res := svcsdktypes.Tag{}
 	if c.Key != nil {
-		res.SetKey(*c.Key)
+		res.Key = c.Key
 	}
 	if c.Value != nil {
-		res.SetValue(*c.Value)
+		res.Value = c.Value
 	}
 
 	return res
