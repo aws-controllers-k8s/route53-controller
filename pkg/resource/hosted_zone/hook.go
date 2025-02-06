@@ -2,14 +2,18 @@ package hosted_zone
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	svcapitypes "github.com/aws-controllers-k8s/route53-controller/apis/v1alpha1"
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
 	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-	svcsdk "github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/route53"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
 )
 
 // getCallerReference will generate a CallerReference for a given hosted zone
@@ -57,7 +61,8 @@ func (rm *resourceManager) syncTags(
 		exit(err)
 	}(err)
 
-	resourceId := latest.ko.Status.ID
+	//
+	resourceId := aws.String(strings.TrimPrefix(*latest.ko.Status.ID, "/hostedzone/"))
 
 	desiredTags := ToACKTags(desired.ko.Spec.Tags)
 	latestTags := ToACKTags(latest.ko.Spec.Tags)
@@ -67,18 +72,19 @@ func (rm *resourceManager) syncTags(
 	toAdd := FromACKTags(added)
 
 	var toDeleteTagKeys []*string
-	for k, _ := range removed {
+	for k := range removed {
 		toDeleteTagKeys = append(toDeleteTagKeys, &k)
 	}
 
-	resourceType := "hostedzone"
+	resourceType := svcsdktypes.TagResourceTypeHostedzone
 	if len(toDeleteTagKeys) > 0 {
 		rlog.Debug("removing tags from HostedZone resource", "tags", toDeleteTagKeys)
 		_, err = rm.sdkapi.ChangeTagsForResource(
+			ctx,
 			&svcsdk.ChangeTagsForResourceInput{
 				ResourceId:    resourceId,
-				RemoveTagKeys: toDeleteTagKeys,
-				ResourceType:  &resourceType,
+				RemoveTagKeys: aws.ToStringSlice(toDeleteTagKeys),
+				ResourceType:  resourceType,
 			},
 		)
 		rm.metrics.RecordAPICall("UPDATE", "DeleteTags", err)
@@ -91,10 +97,11 @@ func (rm *resourceManager) syncTags(
 	if len(toAdd) > 0 {
 		rlog.Debug("adding tags to HostedZone resource", "tags", toAdd)
 		_, err = rm.sdkapi.ChangeTagsForResource(
+			ctx,
 			&svcsdk.ChangeTagsForResourceInput{
 				ResourceId:   resourceId,
 				AddTags:      rm.sdkTags(toAdd),
-				ResourceType: &resourceType,
+				ResourceType: resourceType,
 			},
 		)
 		rm.metrics.RecordAPICall("UPDATE", "CreateTags", err)
@@ -109,7 +116,7 @@ func (rm *resourceManager) syncTags(
 // sdkTags converts *svcapitypes.Tag array to a *svcsdk.Tag array
 func (rm *resourceManager) sdkTags(
 	tags []*svcapitypes.Tag,
-) (sdktags []*svcsdk.Tag) {
+) (sdktags []svcsdktypes.Tag) {
 
 	for _, i := range tags {
 		sdktag := rm.newTag(*i)
@@ -150,16 +157,14 @@ func (rm *resourceManager) setResourceAdditionalFields(
 	if ko.Status.ID != nil {
 		// Get the tags for hosted_zone resource
 		tags_input := svcsdk.ListTagsForResourceInput{}
-		tags_input.SetResourceId(*ko.Status.ID)
-		tags_input.SetResourceType("hostedzone")
+		tags_input.ResourceId = aws.String(strings.TrimPrefix(*ko.Status.ID, "/hostedzone/"))
+		tags_input.ResourceType = svcsdktypes.TagResourceTypeHostedzone
 		var tags_resp *svcsdk.ListTagsForResourceOutput
-		tags_resp, err = rm.sdkapi.ListTagsForResourceWithContext(ctx, &tags_input)
+		tags_resp, err = rm.sdkapi.ListTagsForResource(ctx, &tags_input)
 		rm.metrics.RecordAPICall("READ_ONE", "ListTagsForResource", err)
 		if err != nil {
-			if reqErr, ok := ackerr.AWSRequestFailure(err); ok && reqErr.StatusCode() == 404 {
-				return ackerr.NotFound
-			}
-			if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "NoSuchHostedZone" {
+			var notFound *svcsdktypes.NoSuchHostedZone
+			if errors.As(err, &notFound) {
 				return ackerr.NotFound
 			}
 			return err

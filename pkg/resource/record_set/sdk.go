@@ -28,8 +28,10 @@ import (
 	ackerr "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	ackrequeue "github.com/aws-controllers-k8s/runtime/pkg/requeue"
 	ackrtlog "github.com/aws-controllers-k8s/runtime/pkg/runtime/log"
-	"github.com/aws/aws-sdk-go/aws"
-	svcsdk "github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	svcsdk "github.com/aws/aws-sdk-go-v2/service/route53"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	smithy "github.com/aws/smithy-go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -40,8 +42,7 @@ import (
 var (
 	_ = &metav1.Time{}
 	_ = strings.ToLower("")
-	_ = &aws.JSONValue{}
-	_ = &svcsdk.Route53{}
+	_ = &svcsdk.Client{}
 	_ = &svcapitypes.RecordSet{}
 	_ = ackv1alpha1.AWSAccountID("")
 	_ = &ackerr.NotFound
@@ -49,6 +50,7 @@ var (
 	_ = &reflect.Value{}
 	_ = fmt.Sprintf("")
 	_ = &ackrequeue.NoRequeue{}
+	_ = &aws.Config{}
 )
 
 // sdkFind returns SDK-specific information about a supplied resource
@@ -84,19 +86,20 @@ func (rm *resourceManager) sdkFind(
 
 	// Setting the starting point to the following values reduces the number of irrelevant
 	// records that are returned.
-	input.SetStartRecordName(dnsName)
+	input.StartRecordName = &dnsName
 	if r.ko.Spec.RecordType != nil {
-		input.SetStartRecordType(*r.ko.Spec.RecordType)
+		input.StartRecordType = svcsdktypes.RRType(*r.ko.Spec.RecordType)
 	}
 	if r.ko.Spec.SetIdentifier != nil {
-		input.SetStartRecordIdentifier(*r.ko.Spec.SetIdentifier)
+		input.StartRecordIdentifier = r.ko.Spec.SetIdentifier
 	}
 
 	var resp *svcsdk.ListResourceRecordSetsOutput
-	resp, err = rm.sdkapi.ListResourceRecordSetsWithContext(ctx, input)
+	resp, err = rm.sdkapi.ListResourceRecordSets(ctx, input)
 	rm.metrics.RecordAPICall("READ_MANY", "ListResourceRecordSets", err)
 	if err != nil {
-		if awsErr, ok := ackerr.AWSError(err); ok && awsErr.Code() == "NoSuchHostedZone" {
+		var awsErr smithy.APIError
+		if errors.As(err, &awsErr) && awsErr.ErrorCode() == "NoSuchHostedZone" {
 			return nil, ackerr.NotFound
 		}
 		return nil, err
@@ -110,7 +113,7 @@ func (rm *resourceManager) sdkFind(
 	// it just consumes starting values for HostedZoneID, Name, RecordType, and SetIdentifier
 	// from an alphabetically sorted list. As an example, if we are filtering for 'A' records,
 	// ListResourceRecordSets could still return 'CNAME' records.
-	var recordSets []*svcsdk.ResourceRecordSet
+	var recordSets []svcsdktypes.ResourceRecordSet
 	for _, elem := range resp.ResourceRecordSets {
 		if elem.Name != nil {
 			// ListResourceRecordSets returns the full DNS name, so we need to reconstruct
@@ -147,7 +150,7 @@ func (rm *resourceManager) sdkFind(
 		}
 
 		// RecordTypes are required, so discard records that don't have them.
-		if elem.Type == nil || (*elem.Type != *ko.Spec.RecordType) {
+		if elem.Type == "" || (string(elem.Type) != *ko.Spec.RecordType) {
 			continue
 		}
 
@@ -162,9 +165,7 @@ func (rm *resourceManager) sdkFind(
 			if elem.AliasTarget.DNSName != nil {
 				f0.DNSName = elem.AliasTarget.DNSName
 			}
-			if elem.AliasTarget.EvaluateTargetHealth != nil {
-				f0.EvaluateTargetHealth = elem.AliasTarget.EvaluateTargetHealth
-			}
+			f0.EvaluateTargetHealth = &elem.AliasTarget.EvaluateTargetHealth
 			if elem.AliasTarget.HostedZoneId != nil {
 				f0.HostedZoneID = elem.AliasTarget.HostedZoneId
 			}
@@ -184,8 +185,8 @@ func (rm *resourceManager) sdkFind(
 		} else {
 			ko.Spec.CIDRRoutingConfig = nil
 		}
-		if elem.Failover != nil {
-			ko.Spec.Failover = elem.Failover
+		if elem.Failover != "" {
+			ko.Spec.Failover = aws.String(string(elem.Failover))
 		} else {
 			ko.Spec.Failover = nil
 		}
@@ -224,8 +225,8 @@ func (rm *resourceManager) sdkFind(
 		} else {
 			ko.Spec.Name = nil
 		}
-		if elem.Region != nil {
-			ko.Spec.Region = elem.Region
+		if elem.Region != "" {
+			ko.Spec.Region = aws.String(string(elem.Region))
 		} else {
 			ko.Spec.Region = nil
 		}
@@ -278,7 +279,7 @@ func (rm *resourceManager) sdkFind(
 	if err != nil {
 		return nil, err
 	}
-	if ko.Status.Status == nil || *ko.Status.Status != svcsdk.ChangeStatusInsync {
+	if ko.Status.Status == nil || svcsdktypes.ChangeStatus(*ko.Status.Status) != svcsdktypes.ChangeStatusInsync {
 		ackcondition.SetSynced(&resource{ko}, corev1.ConditionFalse, nil, nil)
 	}
 
@@ -302,7 +303,7 @@ func (rm *resourceManager) newListRequestPayload(
 	res := &svcsdk.ListResourceRecordSetsInput{}
 
 	if r.ko.Spec.HostedZoneID != nil {
-		res.SetHostedZoneId(*r.ko.Spec.HostedZoneID)
+		res.HostedZoneId = r.ko.Spec.HostedZoneID
 	}
 
 	return res, nil
@@ -325,17 +326,17 @@ func (rm *resourceManager) sdkCreate(
 		return nil, err
 	}
 
-	action := svcsdk.ChangeActionCreate
+	action := svcsdktypes.ChangeActionCreate
 	recordSet, err := rm.newResourceRecordSet(ctx, desired)
 	if err != nil {
 		return nil, err
 	}
 	changeBatch := rm.newChangeBatch(action, recordSet)
-	input.SetChangeBatch(changeBatch)
+	input.ChangeBatch = changeBatch
 
 	var resp *svcsdk.ChangeResourceRecordSetsOutput
 	_ = resp
-	resp, err = rm.sdkapi.ChangeResourceRecordSetsWithContext(ctx, input)
+	resp, err = rm.sdkapi.ChangeResourceRecordSets(ctx, input)
 	rm.metrics.RecordAPICall("CREATE", "ChangeResourceRecordSets", err)
 	if err != nil {
 		return nil, err
@@ -349,8 +350,8 @@ func (rm *resourceManager) sdkCreate(
 	} else {
 		ko.Status.ID = nil
 	}
-	if resp.ChangeInfo.Status != nil {
-		ko.Status.Status = resp.ChangeInfo.Status
+	if resp.ChangeInfo.Status != "" {
+		ko.Status.Status = aws.String(string(resp.ChangeInfo.Status))
 	} else {
 		ko.Status.Status = nil
 	}
@@ -373,106 +374,106 @@ func (rm *resourceManager) newCreateRequestPayload(
 	res := &svcsdk.ChangeResourceRecordSetsInput{}
 
 	if r.ko.Spec.ChangeBatch != nil {
-		f0 := &svcsdk.ChangeBatch{}
+		f0 := &svcsdktypes.ChangeBatch{}
 		if r.ko.Spec.ChangeBatch.Changes != nil {
-			f0f0 := []*svcsdk.Change{}
+			f0f0 := []svcsdktypes.Change{}
 			for _, f0f0iter := range r.ko.Spec.ChangeBatch.Changes {
-				f0f0elem := &svcsdk.Change{}
+				f0f0elem := &svcsdktypes.Change{}
 				if f0f0iter.Action != nil {
-					f0f0elem.SetAction(*f0f0iter.Action)
+					f0f0elem.Action = svcsdktypes.ChangeAction(*f0f0iter.Action)
 				}
 				if f0f0iter.ResourceRecordSet != nil {
-					f0f0elemf1 := &svcsdk.ResourceRecordSet{}
+					f0f0elemf1 := &svcsdktypes.ResourceRecordSet{}
 					if f0f0iter.ResourceRecordSet.AliasTarget != nil {
-						f0f0elemf1f0 := &svcsdk.AliasTarget{}
+						f0f0elemf1f0 := &svcsdktypes.AliasTarget{}
 						if f0f0iter.ResourceRecordSet.AliasTarget.DNSName != nil {
-							f0f0elemf1f0.SetDNSName(*f0f0iter.ResourceRecordSet.AliasTarget.DNSName)
+							f0f0elemf1f0.DNSName = f0f0iter.ResourceRecordSet.AliasTarget.DNSName
 						}
 						if f0f0iter.ResourceRecordSet.AliasTarget.EvaluateTargetHealth != nil {
-							f0f0elemf1f0.SetEvaluateTargetHealth(*f0f0iter.ResourceRecordSet.AliasTarget.EvaluateTargetHealth)
+							f0f0elemf1f0.EvaluateTargetHealth = *f0f0iter.ResourceRecordSet.AliasTarget.EvaluateTargetHealth
 						}
 						if f0f0iter.ResourceRecordSet.AliasTarget.HostedZoneID != nil {
-							f0f0elemf1f0.SetHostedZoneId(*f0f0iter.ResourceRecordSet.AliasTarget.HostedZoneID)
+							f0f0elemf1f0.HostedZoneId = f0f0iter.ResourceRecordSet.AliasTarget.HostedZoneID
 						}
-						f0f0elemf1.SetAliasTarget(f0f0elemf1f0)
+						f0f0elemf1.AliasTarget = f0f0elemf1f0
 					}
 					if f0f0iter.ResourceRecordSet.CIDRRoutingConfig != nil {
-						f0f0elemf1f1 := &svcsdk.CidrRoutingConfig{}
+						f0f0elemf1f1 := &svcsdktypes.CidrRoutingConfig{}
 						if f0f0iter.ResourceRecordSet.CIDRRoutingConfig.CollectionID != nil {
-							f0f0elemf1f1.SetCollectionId(*f0f0iter.ResourceRecordSet.CIDRRoutingConfig.CollectionID)
+							f0f0elemf1f1.CollectionId = f0f0iter.ResourceRecordSet.CIDRRoutingConfig.CollectionID
 						}
 						if f0f0iter.ResourceRecordSet.CIDRRoutingConfig.LocationName != nil {
-							f0f0elemf1f1.SetLocationName(*f0f0iter.ResourceRecordSet.CIDRRoutingConfig.LocationName)
+							f0f0elemf1f1.LocationName = f0f0iter.ResourceRecordSet.CIDRRoutingConfig.LocationName
 						}
-						f0f0elemf1.SetCidrRoutingConfig(f0f0elemf1f1)
+						f0f0elemf1.CidrRoutingConfig = f0f0elemf1f1
 					}
 					if f0f0iter.ResourceRecordSet.Failover != nil {
-						f0f0elemf1.SetFailover(*f0f0iter.ResourceRecordSet.Failover)
+						f0f0elemf1.Failover = svcsdktypes.ResourceRecordSetFailover(*f0f0iter.ResourceRecordSet.Failover)
 					}
 					if f0f0iter.ResourceRecordSet.GeoLocation != nil {
-						f0f0elemf1f3 := &svcsdk.GeoLocation{}
+						f0f0elemf1f3 := &svcsdktypes.GeoLocation{}
 						if f0f0iter.ResourceRecordSet.GeoLocation.ContinentCode != nil {
-							f0f0elemf1f3.SetContinentCode(*f0f0iter.ResourceRecordSet.GeoLocation.ContinentCode)
+							f0f0elemf1f3.ContinentCode = f0f0iter.ResourceRecordSet.GeoLocation.ContinentCode
 						}
 						if f0f0iter.ResourceRecordSet.GeoLocation.CountryCode != nil {
-							f0f0elemf1f3.SetCountryCode(*f0f0iter.ResourceRecordSet.GeoLocation.CountryCode)
+							f0f0elemf1f3.CountryCode = f0f0iter.ResourceRecordSet.GeoLocation.CountryCode
 						}
 						if f0f0iter.ResourceRecordSet.GeoLocation.SubdivisionCode != nil {
-							f0f0elemf1f3.SetSubdivisionCode(*f0f0iter.ResourceRecordSet.GeoLocation.SubdivisionCode)
+							f0f0elemf1f3.SubdivisionCode = f0f0iter.ResourceRecordSet.GeoLocation.SubdivisionCode
 						}
-						f0f0elemf1.SetGeoLocation(f0f0elemf1f3)
+						f0f0elemf1.GeoLocation = f0f0elemf1f3
 					}
 					if f0f0iter.ResourceRecordSet.HealthCheckID != nil {
-						f0f0elemf1.SetHealthCheckId(*f0f0iter.ResourceRecordSet.HealthCheckID)
+						f0f0elemf1.HealthCheckId = f0f0iter.ResourceRecordSet.HealthCheckID
 					}
 					if f0f0iter.ResourceRecordSet.MultiValueAnswer != nil {
-						f0f0elemf1.SetMultiValueAnswer(*f0f0iter.ResourceRecordSet.MultiValueAnswer)
+						f0f0elemf1.MultiValueAnswer = f0f0iter.ResourceRecordSet.MultiValueAnswer
 					}
 					if f0f0iter.ResourceRecordSet.Name != nil {
-						f0f0elemf1.SetName(*f0f0iter.ResourceRecordSet.Name)
+						f0f0elemf1.Name = f0f0iter.ResourceRecordSet.Name
 					}
 					if f0f0iter.ResourceRecordSet.Region != nil {
-						f0f0elemf1.SetRegion(*f0f0iter.ResourceRecordSet.Region)
+						f0f0elemf1.Region = svcsdktypes.ResourceRecordSetRegion(*f0f0iter.ResourceRecordSet.Region)
 					}
 					if f0f0iter.ResourceRecordSet.ResourceRecords != nil {
-						f0f0elemf1f8 := []*svcsdk.ResourceRecord{}
+						f0f0elemf1f8 := []svcsdktypes.ResourceRecord{}
 						for _, f0f0elemf1f8iter := range f0f0iter.ResourceRecordSet.ResourceRecords {
-							f0f0elemf1f8elem := &svcsdk.ResourceRecord{}
+							f0f0elemf1f8elem := &svcsdktypes.ResourceRecord{}
 							if f0f0elemf1f8iter.Value != nil {
-								f0f0elemf1f8elem.SetValue(*f0f0elemf1f8iter.Value)
+								f0f0elemf1f8elem.Value = f0f0elemf1f8iter.Value
 							}
-							f0f0elemf1f8 = append(f0f0elemf1f8, f0f0elemf1f8elem)
+							f0f0elemf1f8 = append(f0f0elemf1f8, *f0f0elemf1f8elem)
 						}
-						f0f0elemf1.SetResourceRecords(f0f0elemf1f8)
+						f0f0elemf1.ResourceRecords = f0f0elemf1f8
 					}
 					if f0f0iter.ResourceRecordSet.SetIdentifier != nil {
-						f0f0elemf1.SetSetIdentifier(*f0f0iter.ResourceRecordSet.SetIdentifier)
+						f0f0elemf1.SetIdentifier = f0f0iter.ResourceRecordSet.SetIdentifier
 					}
 					if f0f0iter.ResourceRecordSet.TTL != nil {
-						f0f0elemf1.SetTTL(*f0f0iter.ResourceRecordSet.TTL)
+						f0f0elemf1.TTL = f0f0iter.ResourceRecordSet.TTL
 					}
 					if f0f0iter.ResourceRecordSet.TrafficPolicyInstanceID != nil {
-						f0f0elemf1.SetTrafficPolicyInstanceId(*f0f0iter.ResourceRecordSet.TrafficPolicyInstanceID)
+						f0f0elemf1.TrafficPolicyInstanceId = f0f0iter.ResourceRecordSet.TrafficPolicyInstanceID
 					}
 					if f0f0iter.ResourceRecordSet.Type != nil {
-						f0f0elemf1.SetType(*f0f0iter.ResourceRecordSet.Type)
+						f0f0elemf1.Type = svcsdktypes.RRType(*f0f0iter.ResourceRecordSet.Type)
 					}
 					if f0f0iter.ResourceRecordSet.Weight != nil {
-						f0f0elemf1.SetWeight(*f0f0iter.ResourceRecordSet.Weight)
+						f0f0elemf1.Weight = f0f0iter.ResourceRecordSet.Weight
 					}
-					f0f0elem.SetResourceRecordSet(f0f0elemf1)
+					f0f0elem.ResourceRecordSet = f0f0elemf1
 				}
-				f0f0 = append(f0f0, f0f0elem)
+				f0f0 = append(f0f0, *f0f0elem)
 			}
-			f0.SetChanges(f0f0)
+			f0.Changes = f0f0
 		}
 		if r.ko.Spec.ChangeBatch.Comment != nil {
-			f0.SetComment(*r.ko.Spec.ChangeBatch.Comment)
+			f0.Comment = r.ko.Spec.ChangeBatch.Comment
 		}
-		res.SetChangeBatch(f0)
+		res.ChangeBatch = f0
 	}
 	if r.ko.Spec.HostedZoneID != nil {
-		res.SetHostedZoneId(*r.ko.Spec.HostedZoneID)
+		res.HostedZoneId = r.ko.Spec.HostedZoneID
 	}
 
 	return res, nil
@@ -504,17 +505,17 @@ func (rm *resourceManager) sdkDelete(
 		return nil, err
 	}
 
-	action := svcsdk.ChangeActionDelete
+	action := svcsdktypes.ChangeActionDelete
 	recordSet, err := rm.newResourceRecordSet(ctx, r)
 	if err != nil {
 		return nil, err
 	}
 	changeBatch := rm.newChangeBatch(action, recordSet)
-	input.SetChangeBatch(changeBatch)
+	input.ChangeBatch = changeBatch
 
 	var resp *svcsdk.ChangeResourceRecordSetsOutput
 	_ = resp
-	resp, err = rm.sdkapi.ChangeResourceRecordSetsWithContext(ctx, input)
+	resp, err = rm.sdkapi.ChangeResourceRecordSets(ctx, input)
 	rm.metrics.RecordAPICall("DELETE", "ChangeResourceRecordSets", err)
 	return nil, err
 }
@@ -527,106 +528,106 @@ func (rm *resourceManager) newDeleteRequestPayload(
 	res := &svcsdk.ChangeResourceRecordSetsInput{}
 
 	if r.ko.Spec.ChangeBatch != nil {
-		f0 := &svcsdk.ChangeBatch{}
+		f0 := &svcsdktypes.ChangeBatch{}
 		if r.ko.Spec.ChangeBatch.Changes != nil {
-			f0f0 := []*svcsdk.Change{}
+			f0f0 := []svcsdktypes.Change{}
 			for _, f0f0iter := range r.ko.Spec.ChangeBatch.Changes {
-				f0f0elem := &svcsdk.Change{}
+				f0f0elem := &svcsdktypes.Change{}
 				if f0f0iter.Action != nil {
-					f0f0elem.SetAction(*f0f0iter.Action)
+					f0f0elem.Action = svcsdktypes.ChangeAction(*f0f0iter.Action)
 				}
 				if f0f0iter.ResourceRecordSet != nil {
-					f0f0elemf1 := &svcsdk.ResourceRecordSet{}
+					f0f0elemf1 := &svcsdktypes.ResourceRecordSet{}
 					if f0f0iter.ResourceRecordSet.AliasTarget != nil {
-						f0f0elemf1f0 := &svcsdk.AliasTarget{}
+						f0f0elemf1f0 := &svcsdktypes.AliasTarget{}
 						if f0f0iter.ResourceRecordSet.AliasTarget.DNSName != nil {
-							f0f0elemf1f0.SetDNSName(*f0f0iter.ResourceRecordSet.AliasTarget.DNSName)
+							f0f0elemf1f0.DNSName = f0f0iter.ResourceRecordSet.AliasTarget.DNSName
 						}
 						if f0f0iter.ResourceRecordSet.AliasTarget.EvaluateTargetHealth != nil {
-							f0f0elemf1f0.SetEvaluateTargetHealth(*f0f0iter.ResourceRecordSet.AliasTarget.EvaluateTargetHealth)
+							f0f0elemf1f0.EvaluateTargetHealth = *f0f0iter.ResourceRecordSet.AliasTarget.EvaluateTargetHealth
 						}
 						if f0f0iter.ResourceRecordSet.AliasTarget.HostedZoneID != nil {
-							f0f0elemf1f0.SetHostedZoneId(*f0f0iter.ResourceRecordSet.AliasTarget.HostedZoneID)
+							f0f0elemf1f0.HostedZoneId = f0f0iter.ResourceRecordSet.AliasTarget.HostedZoneID
 						}
-						f0f0elemf1.SetAliasTarget(f0f0elemf1f0)
+						f0f0elemf1.AliasTarget = f0f0elemf1f0
 					}
 					if f0f0iter.ResourceRecordSet.CIDRRoutingConfig != nil {
-						f0f0elemf1f1 := &svcsdk.CidrRoutingConfig{}
+						f0f0elemf1f1 := &svcsdktypes.CidrRoutingConfig{}
 						if f0f0iter.ResourceRecordSet.CIDRRoutingConfig.CollectionID != nil {
-							f0f0elemf1f1.SetCollectionId(*f0f0iter.ResourceRecordSet.CIDRRoutingConfig.CollectionID)
+							f0f0elemf1f1.CollectionId = f0f0iter.ResourceRecordSet.CIDRRoutingConfig.CollectionID
 						}
 						if f0f0iter.ResourceRecordSet.CIDRRoutingConfig.LocationName != nil {
-							f0f0elemf1f1.SetLocationName(*f0f0iter.ResourceRecordSet.CIDRRoutingConfig.LocationName)
+							f0f0elemf1f1.LocationName = f0f0iter.ResourceRecordSet.CIDRRoutingConfig.LocationName
 						}
-						f0f0elemf1.SetCidrRoutingConfig(f0f0elemf1f1)
+						f0f0elemf1.CidrRoutingConfig = f0f0elemf1f1
 					}
 					if f0f0iter.ResourceRecordSet.Failover != nil {
-						f0f0elemf1.SetFailover(*f0f0iter.ResourceRecordSet.Failover)
+						f0f0elemf1.Failover = svcsdktypes.ResourceRecordSetFailover(*f0f0iter.ResourceRecordSet.Failover)
 					}
 					if f0f0iter.ResourceRecordSet.GeoLocation != nil {
-						f0f0elemf1f3 := &svcsdk.GeoLocation{}
+						f0f0elemf1f3 := &svcsdktypes.GeoLocation{}
 						if f0f0iter.ResourceRecordSet.GeoLocation.ContinentCode != nil {
-							f0f0elemf1f3.SetContinentCode(*f0f0iter.ResourceRecordSet.GeoLocation.ContinentCode)
+							f0f0elemf1f3.ContinentCode = f0f0iter.ResourceRecordSet.GeoLocation.ContinentCode
 						}
 						if f0f0iter.ResourceRecordSet.GeoLocation.CountryCode != nil {
-							f0f0elemf1f3.SetCountryCode(*f0f0iter.ResourceRecordSet.GeoLocation.CountryCode)
+							f0f0elemf1f3.CountryCode = f0f0iter.ResourceRecordSet.GeoLocation.CountryCode
 						}
 						if f0f0iter.ResourceRecordSet.GeoLocation.SubdivisionCode != nil {
-							f0f0elemf1f3.SetSubdivisionCode(*f0f0iter.ResourceRecordSet.GeoLocation.SubdivisionCode)
+							f0f0elemf1f3.SubdivisionCode = f0f0iter.ResourceRecordSet.GeoLocation.SubdivisionCode
 						}
-						f0f0elemf1.SetGeoLocation(f0f0elemf1f3)
+						f0f0elemf1.GeoLocation = f0f0elemf1f3
 					}
 					if f0f0iter.ResourceRecordSet.HealthCheckID != nil {
-						f0f0elemf1.SetHealthCheckId(*f0f0iter.ResourceRecordSet.HealthCheckID)
+						f0f0elemf1.HealthCheckId = f0f0iter.ResourceRecordSet.HealthCheckID
 					}
 					if f0f0iter.ResourceRecordSet.MultiValueAnswer != nil {
-						f0f0elemf1.SetMultiValueAnswer(*f0f0iter.ResourceRecordSet.MultiValueAnswer)
+						f0f0elemf1.MultiValueAnswer = f0f0iter.ResourceRecordSet.MultiValueAnswer
 					}
 					if f0f0iter.ResourceRecordSet.Name != nil {
-						f0f0elemf1.SetName(*f0f0iter.ResourceRecordSet.Name)
+						f0f0elemf1.Name = f0f0iter.ResourceRecordSet.Name
 					}
 					if f0f0iter.ResourceRecordSet.Region != nil {
-						f0f0elemf1.SetRegion(*f0f0iter.ResourceRecordSet.Region)
+						f0f0elemf1.Region = svcsdktypes.ResourceRecordSetRegion(*f0f0iter.ResourceRecordSet.Region)
 					}
 					if f0f0iter.ResourceRecordSet.ResourceRecords != nil {
-						f0f0elemf1f8 := []*svcsdk.ResourceRecord{}
+						f0f0elemf1f8 := []svcsdktypes.ResourceRecord{}
 						for _, f0f0elemf1f8iter := range f0f0iter.ResourceRecordSet.ResourceRecords {
-							f0f0elemf1f8elem := &svcsdk.ResourceRecord{}
+							f0f0elemf1f8elem := &svcsdktypes.ResourceRecord{}
 							if f0f0elemf1f8iter.Value != nil {
-								f0f0elemf1f8elem.SetValue(*f0f0elemf1f8iter.Value)
+								f0f0elemf1f8elem.Value = f0f0elemf1f8iter.Value
 							}
-							f0f0elemf1f8 = append(f0f0elemf1f8, f0f0elemf1f8elem)
+							f0f0elemf1f8 = append(f0f0elemf1f8, *f0f0elemf1f8elem)
 						}
-						f0f0elemf1.SetResourceRecords(f0f0elemf1f8)
+						f0f0elemf1.ResourceRecords = f0f0elemf1f8
 					}
 					if f0f0iter.ResourceRecordSet.SetIdentifier != nil {
-						f0f0elemf1.SetSetIdentifier(*f0f0iter.ResourceRecordSet.SetIdentifier)
+						f0f0elemf1.SetIdentifier = f0f0iter.ResourceRecordSet.SetIdentifier
 					}
 					if f0f0iter.ResourceRecordSet.TTL != nil {
-						f0f0elemf1.SetTTL(*f0f0iter.ResourceRecordSet.TTL)
+						f0f0elemf1.TTL = f0f0iter.ResourceRecordSet.TTL
 					}
 					if f0f0iter.ResourceRecordSet.TrafficPolicyInstanceID != nil {
-						f0f0elemf1.SetTrafficPolicyInstanceId(*f0f0iter.ResourceRecordSet.TrafficPolicyInstanceID)
+						f0f0elemf1.TrafficPolicyInstanceId = f0f0iter.ResourceRecordSet.TrafficPolicyInstanceID
 					}
 					if f0f0iter.ResourceRecordSet.Type != nil {
-						f0f0elemf1.SetType(*f0f0iter.ResourceRecordSet.Type)
+						f0f0elemf1.Type = svcsdktypes.RRType(*f0f0iter.ResourceRecordSet.Type)
 					}
 					if f0f0iter.ResourceRecordSet.Weight != nil {
-						f0f0elemf1.SetWeight(*f0f0iter.ResourceRecordSet.Weight)
+						f0f0elemf1.Weight = f0f0iter.ResourceRecordSet.Weight
 					}
-					f0f0elem.SetResourceRecordSet(f0f0elemf1)
+					f0f0elem.ResourceRecordSet = f0f0elemf1
 				}
-				f0f0 = append(f0f0, f0f0elem)
+				f0f0 = append(f0f0, *f0f0elem)
 			}
-			f0.SetChanges(f0f0)
+			f0.Changes = f0f0
 		}
 		if r.ko.Spec.ChangeBatch.Comment != nil {
-			f0.SetComment(*r.ko.Spec.ChangeBatch.Comment)
+			f0.Comment = r.ko.Spec.ChangeBatch.Comment
 		}
-		res.SetChangeBatch(f0)
+		res.ChangeBatch = f0
 	}
 	if r.ko.Spec.HostedZoneID != nil {
-		res.SetHostedZoneId(*r.ko.Spec.HostedZoneID)
+		res.HostedZoneId = r.ko.Spec.HostedZoneID
 	}
 
 	return res, nil
@@ -734,11 +735,12 @@ func (rm *resourceManager) terminalAWSError(err error) bool {
 	if err == nil {
 		return false
 	}
-	awsErr, ok := ackerr.AWSError(err)
-	if !ok {
+
+	var terminalErr smithy.APIError
+	if !errors.As(err, &terminalErr) {
 		return false
 	}
-	switch awsErr.Code() {
+	switch terminalErr.ErrorCode() {
 	case "InvalidChangeBatch",
 		"InvalidInput",
 		"NoSuchHostedZone",

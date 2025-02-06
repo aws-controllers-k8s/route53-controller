@@ -19,7 +19,7 @@ import (
 	acktags "github.com/aws-controllers-k8s/runtime/pkg/tags"
 
 	svcapitypes "github.com/aws-controllers-k8s/route53-controller/apis/v1alpha1"
-	svcsdk "github.com/aws/aws-sdk-go/service/route53"
+	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
 )
 
 var (
@@ -64,7 +64,7 @@ func FromACKTags(tags acktags.Tags) []*svcapitypes.Tag {
 }
 
 // FromRoute53Tags converts the tags parameter into []*svcapitypes.Tag shape.
-func FromRoute53Tags(tags []*svcsdk.Tag) []*svcapitypes.Tag {
+func FromRoute53Tags(tags []svcsdktypes.Tag) []*svcapitypes.Tag {
 	result := []*svcapitypes.Tag{}
 	for _, tag := range tags {
 		kCopy := *tag.Key

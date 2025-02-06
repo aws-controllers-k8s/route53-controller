@@ -3,6 +3,7 @@ ignore:
   - ChangeResourceRecordSetsOutput.ChangeInfo.Comment
   - CreateHostedZoneInput.CallerReference
   - CreateHealthCheckInput.CallerReference
+  - ResourceRecordSet.GeoProximityLocation
   operations: null
   resource_names:
   - CidrCollection
@@ -17,7 +18,8 @@ ignore:
   - VPCAssociationAuthorization
   - CidrCollection
   shape_names: null
-model_name: route53
+sdk_names:
+  model_name: route-53
 operations:
   ChangeResourceRecordSets:
     operation_type:

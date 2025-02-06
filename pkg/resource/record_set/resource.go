@@ -19,6 +19,7 @@ import (
 	ackv1alpha1 "github.com/aws-controllers-k8s/runtime/apis/core/v1alpha1"
 	ackerrors "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	acktypes "github.com/aws-controllers-k8s/runtime/pkg/types"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	rtclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -92,7 +93,7 @@ func (r *resource) SetIdentifiers(identifier *ackv1alpha1.AWSIdentifiers) error 
 
 	f0, f0ok := identifier.AdditionalKeys["hostedZoneID"]
 	if f0ok {
-		r.ko.Spec.HostedZoneID = &f0
+		r.ko.Spec.HostedZoneID = aws.String(f0)
 	}
 
 	f1, f1ok := identifier.AdditionalKeys["recordType"]
@@ -112,7 +113,7 @@ func (r *resource) PopulateResourceFromAnnotation(fields map[string]string) erro
 
 	f0, f0ok := fields["hostedZoneID"]
 	if f0ok {
-		r.ko.Spec.HostedZoneID = &f0
+		r.ko.Spec.HostedZoneID = aws.String(f0)
 	}
 
 	if f1, f1ok := fields["recordType"]; f1ok {

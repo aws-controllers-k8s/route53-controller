@@ -10,10 +10,10 @@
 
 	// Setting the starting point to the following values reduces the number of irrelevant
 	// records that are returned.
-	input.SetStartRecordName(dnsName)
+	input.StartRecordName = &dnsName
 	if r.ko.Spec.RecordType != nil {
-		input.SetStartRecordType(*r.ko.Spec.RecordType)
+		input.StartRecordType = svcsdktypes.RRType(*r.ko.Spec.RecordType)
 	}
 	if r.ko.Spec.SetIdentifier != nil {
-		input.SetStartRecordIdentifier(*r.ko.Spec.SetIdentifier)
+		input.StartRecordIdentifier = r.ko.Spec.SetIdentifier
 	}

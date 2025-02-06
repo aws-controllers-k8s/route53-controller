@@ -6,6 +6,6 @@
 	if err != nil {
 		return nil, err
 	}
-	if ko.Status.Status == nil || *ko.Status.Status != svcsdk.ChangeStatusInsync {
+	if ko.Status.Status == nil || svcsdktypes.ChangeStatus(*ko.Status.Status) != svcsdktypes.ChangeStatusInsync {
 		ackcondition.SetSynced(&resource{ko}, corev1.ConditionFalse, nil, nil)
 	}
