@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strings"
 	"time"
 
 	svcapitypes "github.com/aws-controllers-k8s/route53-controller/apis/v1alpha1"
@@ -34,12 +33,6 @@ func (rm *resourceManager) customUpdateHealthCheck(
 	defer func() {
 		exit(err)
 	}()
-
-	// Do not proceed with update if an immutable field was updated
-	if immutableFieldChanges := rm.getImmutableFieldChanges(delta); len(immutableFieldChanges) > 0 {
-		msg := fmt.Sprintf("Immutable Spec fields have been modified: %s", strings.Join(immutableFieldChanges, ","))
-		return nil, ackerr.NewTerminalError(fmt.Errorf(msg))
-	}
 
 	// Merge in the information we read from the API call above to the copy of
 	// the original Kubernetes object we passed to the function
