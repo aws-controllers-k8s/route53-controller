@@ -44,7 +44,7 @@ spec:
               with the current Amazon Web Services account.
             properties:
               healthCheckConfig:
-                description: A complex type that contains settings for a new health
+                description: A complex type that contains information about the health
                   check.
                 properties:
                   alarmIdentifier:
@@ -102,12 +102,6 @@ spec:
                     type: string
                 type: object
               tags:
-                description: |-
-                  A complex type that contains a list of the tags that you want to add to the
-                  specified health check or hosted zone and/or the tags that you want to edit
-                  Value for.
-
-                  You can add a maximum of 10 tags to a health check or a hosted zone.
                 items:
                   description: |-
                     A complex type that contains information about a tag that you want to add
@@ -194,7 +188,7 @@ spec:
                 type: object
               conditions:
                 description: |-
-                  All CRS managed by ACK have a common `Status.Conditions` member that
+                  All CRs managed by ACK have a common `Status.Conditions` member that
                   contains a collection of `ackv1alpha1.Condition` objects that describe
                   the various terminal states of the CR and its backend AWS service API
                   resource

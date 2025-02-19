@@ -27,13 +27,16 @@ import (
 type HealthCheckSpec struct {
 
 	// A complex type that contains settings for a new health check.
+
 	// +kubebuilder:validation:Required
+
 	HealthCheckConfig *HealthCheckConfig `json:"healthCheckConfig"`
 	// A complex type that contains a list of the tags that you want to add to the
 	// specified health check or hosted zone and/or the tags that you want to edit
 	// Value for.
 	//
 	// You can add a maximum of 10 tags to a health check or a hosted zone.
+
 	Tags []*Tag `json:"tags,omitempty"`
 }
 
@@ -44,7 +47,7 @@ type HealthCheckStatus struct {
 	// constructed ARN for the resource
 	// +kubebuilder:validation:Optional
 	ACKResourceMetadata *ackv1alpha1.ResourceMetadata `json:"ackResourceMetadata"`
-	// All CRS managed by ACK have a common `Status.Conditions` member that
+	// All CRs managed by ACK have a common `Status.Conditions` member that
 	// contains a collection of `ackv1alpha1.Condition` objects that describe
 	// the various terminal states of the CR and its backend AWS service API
 	// resource

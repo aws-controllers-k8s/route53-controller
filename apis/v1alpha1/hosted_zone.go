@@ -34,15 +34,17 @@ type HostedZoneSpec struct {
 	// for a subdomain, make sure that the parent hosted zone doesn't use one or
 	// more of the same name servers. If you have overlapping nameservers, the operation
 	// will cause a ConflictingDomainsExist error.
+
 	DelegationSetID *string `json:"delegationSetID,omitempty"`
 	// (Optional) A complex type that contains the following optional values:
 	//
-	//   - For public and private hosted zones, an optional comment
+	//    * For public and private hosted zones, an optional comment
 	//
-	//   - For private hosted zones, an optional PrivateZone element
+	//    * For private hosted zones, an optional PrivateZone element
 	//
 	// If you don't specify a comment or the PrivateZone element, omit HostedZoneConfig
 	// and the other elements.
+
 	HostedZoneConfig *HostedZoneConfig `json:"hostedZoneConfig,omitempty"`
 	// The name of the domain. Specify a fully qualified domain name, for example,
 	// www.example.com. The trailing dot is optional; Amazon Route 53 assumes that
@@ -53,13 +55,16 @@ type HostedZoneSpec struct {
 	// with your DNS registrar. If your domain name is registered with a registrar
 	// other than Route 53, change the name servers for your domain to the set of
 	// NameServers that CreateHostedZone returns in DelegationSet.
+
 	// +kubebuilder:validation:Required
+
 	Name *string `json:"name"`
 	// A complex type that contains a list of the tags that you want to add to the
 	// specified health check or hosted zone and/or the tags that you want to edit
 	// Value for.
 	//
 	// You can add a maximum of 10 tags to a health check or a hosted zone.
+
 	Tags []*Tag `json:"tags,omitempty"`
 	// (Private hosted zones only) A complex type that contains information about
 	// the Amazon VPC that you're associating with this hosted zone.
@@ -71,6 +76,7 @@ type HostedZoneSpec struct {
 	// To associate additional Amazon VPCs with the hosted zone, use AssociateVPCWithHostedZone
 	// (https://docs.aws.amazon.com/Route53/latest/APIReference/API_AssociateVPCWithHostedZone.html)
 	// after you create a hosted zone.
+
 	VPC *VPC `json:"vpc,omitempty"`
 }
 
@@ -81,7 +87,7 @@ type HostedZoneStatus struct {
 	// constructed ARN for the resource
 	// +kubebuilder:validation:Optional
 	ACKResourceMetadata *ackv1alpha1.ResourceMetadata `json:"ackResourceMetadata"`
-	// All CRS managed by ACK have a common `Status.Conditions` member that
+	// All CRs managed by ACK have a common `Status.Conditions` member that
 	// contains a collection of `ackv1alpha1.Condition` objects that describe
 	// the various terminal states of the CR and its backend AWS service API
 	// resource
