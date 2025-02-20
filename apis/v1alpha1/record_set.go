@@ -214,6 +214,7 @@ type RecordSetSpec struct {
 	HealthCheckID *string `json:"healthCheckID,omitempty"`
 	// The ID of the hosted zone that contains the resource record sets that you
 	// want to change.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable once set"
 	HostedZoneID  *string                                  `json:"hostedZoneID,omitempty"`
 	HostedZoneRef *ackv1alpha1.AWSResourceReferenceWrapper `json:"hostedZoneRef,omitempty"`
 	// Multivalue answer resource record sets only: To route traffic approximately
@@ -272,6 +273,8 @@ type RecordSetSpec struct {
 	//     domain name, DNS treats it as an * character (ASCII 42), not as a wildcard.
 	//     You can't use the * wildcard for resource records sets that have a type
 	//     of NS.
+	//
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable once set"
 	Name *string `json:"name,omitempty"`
 	// The DNS record type. For information about different record types and how
 	// data is encoded for them, see Supported DNS Resource Record Types (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/ResourceRecordTypes.html)
@@ -323,6 +326,7 @@ type RecordSetSpec struct {
 	//     routing traffic to, and creating a CNAME record for the zone apex isn't
 	//     supported even for an alias record.
 	//
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable once set"
 	// +kubebuilder:validation:Required
 	RecordType *string `json:"recordType"`
 	// Latency-based resource record sets only: The Amazon EC2 Region where you
@@ -365,6 +369,7 @@ type RecordSetSpec struct {
 	//
 	// For information about routing policies, see Choosing a Routing Policy (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html)
 	// in the Amazon Route 53 Developer Guide.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable once set"
 	SetIdentifier *string `json:"setIdentifier,omitempty"`
 	// The resource record cache time to live (TTL), in seconds. Note the following:
 	//
@@ -426,7 +431,7 @@ type RecordSetStatus struct {
 	// constructed ARN for the resource
 	// +kubebuilder:validation:Optional
 	ACKResourceMetadata *ackv1alpha1.ResourceMetadata `json:"ackResourceMetadata"`
-	// All CRS managed by ACK have a common `Status.Conditions` member that
+	// All CRs managed by ACK have a common `Status.Conditions` member that
 	// contains a collection of `ackv1alpha1.Condition` objects that describe
 	// the various terminal states of the CR and its backend AWS service API
 	// resource
