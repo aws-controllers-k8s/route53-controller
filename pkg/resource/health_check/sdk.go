@@ -734,27 +734,6 @@ func (rm *resourceManager) terminalAWSError(err error) bool {
 	}
 }
 
-// getImmutableFieldChanges returns list of immutable fields from the
-func (rm *resourceManager) getImmutableFieldChanges(
-	delta *ackcompare.Delta,
-) []string {
-	var fields []string
-	if delta.DifferentAt("Spec.HealthCheckConfig.MeasureLatency") {
-		fields = append(fields, "HealthCheckConfig.MeasureLatency")
-	}
-	if delta.DifferentAt("Spec.HealthCheckConfig.RequestInterval") {
-		fields = append(fields, "HealthCheckConfig.RequestInterval")
-	}
-	if delta.DifferentAt("Spec.HealthCheckConfig.RoutingControlArn") {
-		fields = append(fields, "HealthCheckConfig.RoutingControlArn")
-	}
-	if delta.DifferentAt("Spec.HealthCheckConfig.Type") {
-		fields = append(fields, "HealthCheckConfig.Type")
-	}
-
-	return fields
-}
-
 func (rm *resourceManager) newTag(
 	c svcapitypes.Tag,
 ) svcsdktypes.Tag {

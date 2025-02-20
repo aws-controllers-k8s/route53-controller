@@ -365,6 +365,9 @@ spec:
                   The ID of the hosted zone that contains the resource record sets that you
                   want to change.
                 type: string
+                x-kubernetes-validations:
+                - message: Value is immutable once set
+                  rule: self == oldSelf
               hostedZoneRef:
                 description: "AWSResourceReferenceWrapper provides a wrapper around
                   *AWSResourceReference\ntype to provide more user friendly syntax
@@ -443,6 +446,9 @@ spec:
                       You can't use the * wildcard for resource records sets that have a type
                       of NS.
                 type: string
+                x-kubernetes-validations:
+                - message: Value is immutable once set
+                  rule: self == oldSelf
               recordType:
                 description: |-
                   The DNS record type. For information about different record types and how
@@ -495,6 +501,9 @@ spec:
                       routing traffic to, and creating a CNAME record for the zone apex isn't
                       supported even for an alias record.
                 type: string
+                x-kubernetes-validations:
+                - message: Value is immutable once set
+                  rule: self == oldSelf
               region:
                 description: |-
                   Latency-based resource record sets only: The Amazon EC2 Region where you
@@ -551,6 +560,9 @@ spec:
                   For information about routing policies, see Choosing a Routing Policy (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html)
                   in the Amazon Route 53 Developer Guide.
                 type: string
+                x-kubernetes-validations:
+                - message: Value is immutable once set
+                  rule: self == oldSelf
               ttl:
                 description: |-
                   The resource record cache time to live (TTL), in seconds. Note the following:
@@ -645,7 +657,7 @@ spec:
                 type: object
               conditions:
                 description: |-
-                  All CRS managed by ACK have a common `Status.Conditions` member that
+                  All CRs managed by ACK have a common `Status.Conditions` member that
                   contains a collection of `ackv1alpha1.Condition` objects that describe
                   the various terminal states of the CR and its backend AWS service API
                   resource
