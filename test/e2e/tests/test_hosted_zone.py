@@ -109,6 +109,23 @@ class TestHostedZone:
         route53_validator = Route53Validator(route53_client)
         route53_validator.assert_hosted_zone(zone_id)
 
+    def test_delegation_set(self, route53_client, public_hosted_zone):
+        ref, cr = public_hosted_zone
+
+        resource = k8s.get_resource(ref)
+        resource_id = cr["status"]["id"]
+
+        time.sleep(CREATE_WAIT_AFTER_SECONDS)
+
+        # Check hosted_zone exists in AWS
+        route53_validator = Route53Validator(route53_client)
+        route53_validator.assert_hosted_zone(resource_id)
+
+        assert resource["status"]["delegationSet"] is not None
+        assert resource["status"]["delegationSet"]["callerReference"]
+        assert resource["status"]["delegationSet"]["id"]
+        assert len(resource["status"]["delegationSet"]["nameServers"]) > 0
+
     @pytest.mark.resource_data({'tag_key': 'initialtagkey', 'tag_value': 'initialtagvalue'})
     def test_crud_tags(self, route53_client, public_hosted_zone):
         ref, cr = public_hosted_zone
