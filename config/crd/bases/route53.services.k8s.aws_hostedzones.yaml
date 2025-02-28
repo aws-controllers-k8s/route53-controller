@@ -205,6 +205,19 @@ spec:
                   privateZone:
                     type: boolean
                 type: object
+              delegationSet:
+                description: A complex type that describes the name servers for this
+                  hosted zone.
+                properties:
+                  callerReference:
+                    type: string
+                  id:
+                    type: string
+                  nameServers:
+                    items:
+                      type: string
+                    type: array
+                type: object
               id:
                 description: |-
                   The ID that Amazon Route 53 assigned to the hosted zone when you created

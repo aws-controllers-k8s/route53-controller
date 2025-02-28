@@ -96,6 +96,9 @@ type HostedZoneStatus struct {
 	// and Comment elements don't appear in the response.
 	// +kubebuilder:validation:Optional
 	Config *HostedZoneConfig `json:"config,omitempty"`
+	// A complex type that describes the name servers for this hosted zone.
+	// +kubebuilder:validation:Optional
+	DelegationSet *DelegationSet `json:"delegationSet,omitempty"`
 	// The ID that Amazon Route 53 assigned to the hosted zone when you created
 	// it.
 	// +kubebuilder:validation:Optional
