@@ -115,6 +115,8 @@ class TestHostedZone:
         resource = k8s.get_resource(ref)
         resource_id = cr["status"]["id"]
 
+        assert resource_id
+
         time.sleep(CREATE_WAIT_AFTER_SECONDS)
 
         # Check hosted_zone exists in AWS
