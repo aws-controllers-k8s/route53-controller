@@ -903,6 +903,11 @@ func (in *HostedZoneStatus) DeepCopyInto(out *HostedZoneStatus) {
 		*out = new(HostedZoneConfig)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.DelegationSet != nil {
+		in, out := &in.DelegationSet, &out.DelegationSet
+		*out = new(DelegationSet)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.ID != nil {
 		in, out := &in.ID, &out.ID
 		*out = new(string)
