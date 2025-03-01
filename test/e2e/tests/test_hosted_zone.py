@@ -112,12 +112,13 @@ class TestHostedZone:
     def test_delegation_set(self, route53_client, public_hosted_zone):
         ref, cr = public_hosted_zone
 
+        time.sleep(CREATE_WAIT_AFTER_SECONDS)
+
         resource = k8s.get_resource(ref)
         resource_id = cr["status"]["id"]
 
         assert resource_id
 
-        time.sleep(CREATE_WAIT_AFTER_SECONDS)
 
         # Check hosted_zone exists in AWS
         route53_validator = Route53Validator(route53_client)
