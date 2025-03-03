@@ -124,9 +124,7 @@ class TestHostedZone:
         route53_validator = Route53Validator(route53_client)
         route53_validator.assert_hosted_zone(resource_id)
 
-        assert resource["status"]["callerReference"]
         assert resource["status"]["delegationSet"] is not None
-        assert resource["status"]["delegationSet"]["id"]
         assert len(resource["status"]["delegationSet"]["nameServers"]) > 0
 
     @pytest.mark.resource_data({'tag_key': 'initialtagkey', 'tag_value': 'initialtagvalue'})

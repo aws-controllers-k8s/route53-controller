@@ -140,12 +140,6 @@ func (rm *resourceManager) sdkFind(
 
 	if resp.DelegationSet != nil {
 		f := &svcapitypes.DelegationSet{}
-		if resp.DelegationSet.CallerReference != nil {
-			f.CallerReference = resp.DelegationSet.CallerReference
-		}
-		if resp.DelegationSet.Id != nil {
-			f.ID = resp.DelegationSet.Id
-		}
 		if resp.DelegationSet.NameServers != nil {
 			f.NameServers = aws.StringSlice(resp.DelegationSet.NameServers)
 		}
@@ -153,6 +147,7 @@ func (rm *resourceManager) sdkFind(
 	} else {
 		ko.Status.DelegationSet = nil
 	}
+
 	return &resource{ko}, nil
 }
 
@@ -265,12 +260,6 @@ func (rm *resourceManager) sdkCreate(
 
 		if resp.DelegationSet != nil {
 			f := &svcapitypes.DelegationSet{}
-			if resp.DelegationSet.CallerReference != nil {
-				f.CallerReference = resp.DelegationSet.CallerReference
-			}
-			if resp.DelegationSet.Id != nil {
-				f.ID = resp.DelegationSet.Id
-			}
 			if resp.DelegationSet.NameServers != nil {
 				f.NameServers = aws.StringSlice(resp.DelegationSet.NameServers)
 			}
