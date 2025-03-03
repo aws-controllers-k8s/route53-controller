@@ -108,7 +108,7 @@ class TestHostedZone:
         # Check hosted_zone exists in AWS
         route53_validator = Route53Validator(route53_client)
         route53_validator.assert_hosted_zone(zone_id)
-
+    @pytest.mark.resource_data({'tag_key': 'key', 'tag_value': 'value'})
     def test_delegation_set(self, route53_client, public_hosted_zone):
         ref, cr = public_hosted_zone
 
