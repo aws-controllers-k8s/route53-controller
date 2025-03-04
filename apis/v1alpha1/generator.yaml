@@ -163,6 +163,11 @@ resources:
       - InvalidInput
       - InvalidVPCId
     fields:
+      DelegationSet:
+        from:
+          operation: CreateHostedZone
+          path: DelegationSet
+        is_read_only: true
       Tags:
         from:
           operation: ChangeTagsForResource

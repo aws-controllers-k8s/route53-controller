@@ -137,6 +137,17 @@ func (rm *resourceManager) sdkFind(
 	if err := rm.setResourceAdditionalFields(ctx, ko); err != nil {
 		return nil, err
 	}
+
+	if resp.DelegationSet != nil {
+		f := &svcapitypes.DelegationSet{}
+		if resp.DelegationSet.NameServers != nil {
+			f.NameServers = aws.StringSlice(resp.DelegationSet.NameServers)
+		}
+		ko.Status.DelegationSet = f
+	} else {
+		ko.Status.DelegationSet = nil
+	}
+
 	return &resource{ko}, nil
 }
 
@@ -246,6 +257,16 @@ func (rm *resourceManager) sdkCreate(
 		latest := &resource{}
 		latest.ko = &svcapitypes.HostedZone{}
 		latest.ko.Status.ID = ko.Status.ID
+
+		if resp.DelegationSet != nil {
+			f := &svcapitypes.DelegationSet{}
+			if resp.DelegationSet.NameServers != nil {
+				f.NameServers = aws.StringSlice(resp.DelegationSet.NameServers)
+			}
+			ko.Status.DelegationSet = f
+		} else {
+			ko.Status.DelegationSet = nil
+		}
 
 		// This is create operation. So, no tags are present in HostedZone.
 		// So, 'latest' is empty except we have copied 'ID' into the status to
