@@ -4,6 +4,7 @@ ignore:
   - CreateHostedZoneInput.CallerReference
   - CreateHealthCheckInput.CallerReference
   - ResourceRecordSet.GeoProximityLocation
+  - ChangeResourceRecordSetsInput.ChangeBatch
   operations: null
   resource_names:
   - CidrCollection
@@ -54,27 +55,27 @@ resources:
     fields:
       AliasTarget:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.AliasTarget
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.AliasTarget
       # This field cannot be ignored, but values for this will be overriden and should not be used
       ChangeBatch:
         is_required: false
       CidrRoutingConfig:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.CidrRoutingConfig
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.CidrRoutingConfig
       Failover:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.Failover
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.Failover
       GeoLocation:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.GeoLocation
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.GeoLocation
       HealthCheckId:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.HealthCheckId
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.HealthCheckId
       # Changing this value after a CR has been created could result in orphaned record sets
       HostedZoneId:
         references:
@@ -88,48 +89,48 @@ resources:
         ChangeResourceRecordSet request"
       MultiValueAnswer:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.MultiValueAnswer
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.MultiValueAnswer
       # Changing this value after a CR has been created could result in orphaned record sets.
       # Note that the name refers to the subdomain value of a record set and not the fully
       # qualified DNS name
       Name:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.Name
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.Name
         is_immutable: true
       # Changing this value after a CR has been created could result in orphaned record sets
       RecordType:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.Type
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.Type
         is_required: true
         is_immutable: true
       Region:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.Region
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.Region
       ResourceRecords:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.ResourceRecords
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.ResourceRecords
       # Changing this value after a CR has been created could result in orphaned record sets
       SetIdentifier:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.SetIdentifier
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.SetIdentifier
         is_immutable: true
       Status:
         print:
           name: STATUS
       TTL:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.TTL
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.TTL
       Weight:
         from:
-          operation: ChangeResourceRecordSets
-          path: ChangeBatch.Changes.ResourceRecordSet.Weight
+          operation: ListResourceRecordSets
+          path: ResourceRecordSets.Weight
     hooks:
       sdk_create_post_build_request:
         template_path: hooks/record_set/sdk_create_post_build_request.go.tpl
