@@ -36,9 +36,7 @@ type RecordSetSpec struct {
 	//   - For information about creating failover resource record sets in a private
 	//     hosted zone, see Configuring Failover in a Private Hosted Zone (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-private-hosted-zones.html)
 	//     in the Amazon Route 53 Developer Guide.
-	AliasTarget *AliasTarget `json:"aliasTarget,omitempty"`
-	// A complex type that contains an optional comment and the Changes element.
-	ChangeBatch       *ChangeBatch       `json:"changeBatch,omitempty"`
+	AliasTarget       *AliasTarget       `json:"aliasTarget,omitempty"`
 	CIDRRoutingConfig *CIDRRoutingConfig `json:"cidrRoutingConfig,omitempty"`
 	// Failover resource record sets only: To configure failover, you add the Failover
 	// element to two resource record sets. For one resource record set, you specify

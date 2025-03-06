@@ -68,24 +68,6 @@ func newResourceDelta(
 			}
 		}
 	}
-	if ackcompare.HasNilDifference(a.ko.Spec.ChangeBatch, b.ko.Spec.ChangeBatch) {
-		delta.Add("Spec.ChangeBatch", a.ko.Spec.ChangeBatch, b.ko.Spec.ChangeBatch)
-	} else if a.ko.Spec.ChangeBatch != nil && b.ko.Spec.ChangeBatch != nil {
-		if len(a.ko.Spec.ChangeBatch.Changes) != len(b.ko.Spec.ChangeBatch.Changes) {
-			delta.Add("Spec.ChangeBatch.Changes", a.ko.Spec.ChangeBatch.Changes, b.ko.Spec.ChangeBatch.Changes)
-		} else if len(a.ko.Spec.ChangeBatch.Changes) > 0 {
-			if !reflect.DeepEqual(a.ko.Spec.ChangeBatch.Changes, b.ko.Spec.ChangeBatch.Changes) {
-				delta.Add("Spec.ChangeBatch.Changes", a.ko.Spec.ChangeBatch.Changes, b.ko.Spec.ChangeBatch.Changes)
-			}
-		}
-		if ackcompare.HasNilDifference(a.ko.Spec.ChangeBatch.Comment, b.ko.Spec.ChangeBatch.Comment) {
-			delta.Add("Spec.ChangeBatch.Comment", a.ko.Spec.ChangeBatch.Comment, b.ko.Spec.ChangeBatch.Comment)
-		} else if a.ko.Spec.ChangeBatch.Comment != nil && b.ko.Spec.ChangeBatch.Comment != nil {
-			if *a.ko.Spec.ChangeBatch.Comment != *b.ko.Spec.ChangeBatch.Comment {
-				delta.Add("Spec.ChangeBatch.Comment", a.ko.Spec.ChangeBatch.Comment, b.ko.Spec.ChangeBatch.Comment)
-			}
-		}
-	}
 	if ackcompare.HasNilDifference(a.ko.Spec.CIDRRoutingConfig, b.ko.Spec.CIDRRoutingConfig) {
 		delta.Add("Spec.CIDRRoutingConfig", a.ko.Spec.CIDRRoutingConfig, b.ko.Spec.CIDRRoutingConfig)
 	} else if a.ko.Spec.CIDRRoutingConfig != nil && b.ko.Spec.CIDRRoutingConfig != nil {
