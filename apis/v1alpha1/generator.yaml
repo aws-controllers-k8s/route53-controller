@@ -187,8 +187,6 @@ resources:
         template_path: hooks/hosted_zone/sdk_file_end.go.tpl
       ensure_tags:
         template_path: hooks/hosted_zone/sdk_ensure_tags.go.tpl
-    tags:
-      ignore: true
     update_operation:
       custom_method_name: customUpdateHostedZone
   HealthCheck:

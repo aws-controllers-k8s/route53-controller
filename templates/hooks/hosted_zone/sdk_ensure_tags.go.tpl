@@ -7,7 +7,7 @@
      var existingTags []*svcapitypes.Tag
      existingTags = r.ko.Spec.Tags
 
-     resourceTags := ToACKTags(existingTags)
+     resourceTags, _ := convertToOrderedACKTags(existingTags)
      tags := acktags.Merge(resourceTags, defaultTags)
-     r.ko.Spec.Tags = FromACKTags(tags)
+     r.ko.Spec.Tags = fromACKTags(tags, nil)
      return nil

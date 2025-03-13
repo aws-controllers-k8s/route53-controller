@@ -494,3 +494,15 @@ func (rm *resourceManager) newTag(
 
 	return res
 }
+
+// FromRoute53Tags converts the tags parameter into []*svcapitypes.Tag shape.
+func FromRoute53Tags(tags []svcsdktypes.Tag) []*svcapitypes.Tag {
+	result := []*svcapitypes.Tag{}
+	for _, tag := range tags {
+		kCopy := *tag.Key
+		vCopy := *tag.Value
+		svcapiTag := svcapitypes.Tag{Key: &kCopy, Value: &vCopy}
+		result = append(result, &svcapiTag)
+	}
+	return result
+}
