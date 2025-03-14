@@ -305,12 +305,12 @@ func (rm *resourceManager) syncTags(
 
 	resourceId := latest.ko.Status.ID
 
-	desiredTags := ToACKTags(desired.ko.Spec.Tags)
-	latestTags := ToACKTags(latest.ko.Spec.Tags)
+	desiredTags, _ := convertToOrderedACKTags(desired.ko.Spec.Tags)
+	latestTags, _ := convertToOrderedACKTags(latest.ko.Spec.Tags)
 
 	added, _, removed := ackcompare.GetTagsDifference(latestTags, desiredTags)
 
-	toAdd := FromACKTags(added)
+	toAdd := fromACKTags(added, nil)
 
 	var toDeleteTagKeys []*string
 	for k, _ := range removed {
@@ -377,13 +377,13 @@ func compareTags(
 	if len(a.ko.Spec.Tags) != len(b.ko.Spec.Tags) {
 		delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
 	} else if len(a.ko.Spec.Tags) > 0 {
-		desiredTags := ToACKTags(a.ko.Spec.Tags)
-		latestTags := ToACKTags(b.ko.Spec.Tags)
+		desiredTags, _ := convertToOrderedACKTags(a.ko.Spec.Tags)
+		latestTags, _ := convertToOrderedACKTags(b.ko.Spec.Tags)
 
 		added, _, removed := ackcompare.GetTagsDifference(latestTags, desiredTags)
 
-		toAdd := FromACKTags(added)
-		toDelete := FromACKTags(removed)
+		toAdd := fromACKTags(added, nil)
+		toDelete := fromACKTags(removed, nil)
 
 		if len(toAdd) != 0 || len(toDelete) != 0 {
 			delta.Add("Spec.Tags", a.ko.Spec.Tags, b.ko.Spec.Tags)
