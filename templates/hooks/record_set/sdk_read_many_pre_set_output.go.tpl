@@ -10,8 +10,14 @@
 			// the output to compare with the user specified subdomain. If a '*' value is
 			// in the subdomain, ListResourceRecordSets returns it as an encoded value, so
 			// this needs to be decoded before our comparison.
-			subdomain := strings.TrimSuffix(*elem.Name, domain)
-			subdomain = decodeRecordName(subdomain)
+			isFQDN := r.ko.Spec.Name != nil && strings.HasSuffix(*r.ko.Spec.Name, ".")
+			var subdomain string
+			if isFQDN {
+				subdomain = *r.ko.Spec.Name
+			} else {
+				subdomain = strings.TrimSuffix(*elem.Name, domain)
+				subdomain = decodeRecordName(subdomain)
+			}
 
 			// If user supplied no subdomain, we know that records with subdomains cannot
 			// be a match and vice versa.
@@ -22,8 +28,11 @@
 			// For cases where the user supplied a value to Spec.Name, irrelevant records
 			// from ListResourceRecordSets will be further filtered out at a later point in
 			// sdkFind. For now, parse out the "." at the end of the returned subdomain.
+			// For FQDN names (trailing dot), keep the name as-is so it matches ko.Spec.Name.
 			if subdomain != "" {
-				subdomain = subdomain[:len(subdomain)-1]
+				if !isFQDN {
+					subdomain = subdomain[:len(subdomain)-1]
+				}
 				elem.Name = &subdomain
 			} else {
 				elem.Name = nil

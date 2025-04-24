@@ -111,7 +111,7 @@ func (rm *resourceManager) newResourceRecordSet(
 	if err != nil {
 		return nil, err
 	}
-	dnsName := rm.getDNSName(r, domain)
+	dnsName := rm.getDNSName(aws.ToString(r.ko.Spec.Name), domain)
 
 	// Set required fields for the ChangeResourceRecordSets API
 	res.Name = &dnsName
@@ -309,15 +309,21 @@ func (rm *resourceManager) getHostedZoneDomain(
 	return *resp.HostedZone.Name, nil
 }
 
-// getDNSName returns the appended value of the user supplied subdomain and the
-// domain of the hosted zone. If a subdomain is not supplied, the full DNS name
-// will just equate to the hosted zone domain name.
+// getDNSName constructs a fully qualified DNS name from the user-supplied name
+// and the hosted zone domain. If name is already fully qualified (ends with "."),
+// it is returned as-is. If name is a relative subdomain, it is appended to the
+// hosted zone domain. If name is nil, the hosted zone domain is returned.
 func (rm *resourceManager) getDNSName(
-	r *resource,
+	name string,
 	domain string,
-) (dnsName string) {
-	if r.ko.Spec.Name != nil {
-		dnsName += *r.ko.Spec.Name + "."
+) string {
+	dnsName := name
+
+	if strings.HasSuffix(dnsName, ".") {
+		return dnsName
+	}
+	if len(dnsName) > 0 {
+		dnsName += "."
 	}
 	dnsName += domain
 	return dnsName
