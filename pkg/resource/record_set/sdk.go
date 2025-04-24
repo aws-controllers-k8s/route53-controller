@@ -120,8 +120,13 @@ func (rm *resourceManager) sdkFind(
 			// the output to compare with the user specified subdomain. If a '*' value is
 			// in the subdomain, ListResourceRecordSets returns it as an encoded value, so
 			// this needs to be decoded before our comparison.
-			subdomain := strings.TrimSuffix(*elem.Name, domain)
-			subdomain = decodeRecordName(subdomain)
+			subdomain := "*"
+			if r.ko.Spec.Name != nil && strings.HasSuffix(*r.ko.Spec.Name, ".") {
+				subdomain = *r.ko.Spec.Name
+			} else {
+				subdomain = strings.TrimSuffix(*elem.Name, domain)
+				subdomain = decodeRecordName(subdomain)
+			}
 
 			// If user supplied no subdomain, we know that records with subdomains cannot
 			// be a match and vice versa.
