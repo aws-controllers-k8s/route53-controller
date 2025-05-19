@@ -67,15 +67,13 @@ type CIDRRoutingConfig struct {
 
 // The information for each resource record set that you want to change.
 type Change struct {
-	Action *string `json:"action,omitempty"`
 	// Information about the resource record set to create or delete.
 	ResourceRecordSet *ResourceRecordSet `json:"resourceRecordSet,omitempty"`
 }
 
 // The information for a change request.
 type ChangeBatch struct {
-	Changes []*Change `json:"changes,omitempty"`
-	Comment *string   `json:"comment,omitempty"`
+	Comment *string `json:"comment,omitempty"`
 }
 
 // A complex type that describes change information about changes made to your
