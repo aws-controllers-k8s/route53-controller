@@ -74,6 +74,30 @@ def simple_record_set(private_hosted_zone):
 
     delete_route53_resource(ref)
 
+@pytest.fixture(scope="function")
+def fqdn_record_set(private_hosted_zone):
+    zone_id, domain = private_hosted_zone
+    parsed_zone_id = zone_id.split("/")[-1]
+    ip_address = socket.inet_ntoa(struct.pack('>I', random.randint(1, 0xffffffff)))
+    simple_record_name = random_suffix_name("fqdn-record-name", 32)
+
+    replacements = REPLACEMENT_VALUES.copy()
+    replacements["FQDN_RECORD_NAME"] = simple_record_name
+    replacements["FQDN_RECORD_NAME_SPEC"] = simple_record_name+"hello-world.example.com."
+    replacements["HOSTED_ZONE_ID"] = parsed_zone_id
+    replacements["IP_ADDR"] = ip_address
+
+    ref, cr = create_route53_resource(
+        "recordsets",
+        simple_record_name,
+        "record_set_fqdn",
+        replacements
+    )
+
+    yield ref, cr
+
+    delete_route53_resource(ref)
+
 def status_id_exists(ref):
     for _ in range(STATUS_UPDATE_RETRY_COUNT):
         record = get_route53_resource(ref)
@@ -131,3 +155,21 @@ class TestRecordSet:
 
         # Check record set has been updated in AWS
         route53_validator.assert_record_set(updated, domain)
+
+
+    def test_cd_fqdn_record(self, route53_client, private_hosted_zone, fqdn_record_set):
+        zone_id, domain = private_hosted_zone
+        assert zone_id
+
+        # Check hosted zone exists in AWS
+        route53_validator = Route53Validator(route53_client)
+        route53_validator.assert_hosted_zone(zone_id)
+
+        ref, cr = fqdn_record_set
+        assert status_id_exists(ref) is True
+
+        # Check record set exists in AWS
+        route53_validator.assert_record_set(cr, domain)
+
+        # Ensure that the status eventually switches from PENDING to INSYNC
+        assert verify_status_insync(ref) is True
