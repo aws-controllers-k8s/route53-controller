@@ -209,7 +209,8 @@ type RecordSetSpec struct {
 	//     as the name of a resource record set.
 	//
 	//   - Associate that health check with the resource record set.
-	HealthCheckID *string `json:"healthCheckID,omitempty"`
+	HealthCheckID  *string                                  `json:"healthCheckID,omitempty"`
+	HealthCheckRef *ackv1alpha1.AWSResourceReferenceWrapper `json:"healthCheckRef,omitempty"`
 	// The ID of the hosted zone that contains the resource record sets that you
 	// want to change.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable once set"

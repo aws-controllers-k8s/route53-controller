@@ -75,7 +75,10 @@ resources:
       HealthCheckId:
         from:
           operation: ListResourceRecordSets
-          path: ResourceRecordSets.HealthCheckId
+          path: ResourceRecordSets.HealthCheckId      
+        references:
+          resource: HealthCheck
+          path: Status.ID
       # Changing this value after a CR has been created could result in orphaned record sets
       HostedZoneId:
         references:
@@ -85,8 +88,7 @@ resources:
         is_immutable: true
       ID:
         is_primary_key: true
-        documentation: "ID represents the ChangeID that is returned after a successful 
-        ChangeResourceRecordSet request"
+        documentation: "ID represents the ChangeID that is returned after a successful ChangeResourceRecordSet request"
       MultiValueAnswer:
         from:
           operation: ListResourceRecordSets

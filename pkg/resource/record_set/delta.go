@@ -125,6 +125,9 @@ func newResourceDelta(
 			delta.Add("Spec.HealthCheckID", a.ko.Spec.HealthCheckID, b.ko.Spec.HealthCheckID)
 		}
 	}
+	if !reflect.DeepEqual(a.ko.Spec.HealthCheckRef, b.ko.Spec.HealthCheckRef) {
+		delta.Add("Spec.HealthCheckRef", a.ko.Spec.HealthCheckRef, b.ko.Spec.HealthCheckRef)
+	}
 	if ackcompare.HasNilDifference(a.ko.Spec.HostedZoneID, b.ko.Spec.HostedZoneID) {
 		delta.Add("Spec.HostedZoneID", a.ko.Spec.HostedZoneID, b.ko.Spec.HostedZoneID)
 	} else if a.ko.Spec.HostedZoneID != nil && b.ko.Spec.HostedZoneID != nil {

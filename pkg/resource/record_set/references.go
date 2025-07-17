@@ -37,6 +37,10 @@ import (
 func (rm *resourceManager) ClearResolvedReferences(res acktypes.AWSResource) acktypes.AWSResource {
 	ko := rm.concreteResource(res).ko.DeepCopy()
 
+	if ko.Spec.HealthCheckRef != nil {
+		ko.Spec.HealthCheckID = nil
+	}
+
 	if ko.Spec.HostedZoneRef != nil {
 		ko.Spec.HostedZoneID = nil
 	}
@@ -60,6 +64,12 @@ func (rm *resourceManager) ResolveReferences(
 
 	resourceHasReferences := false
 	err := validateReferenceFields(ko)
+	if fieldHasReferences, err := rm.resolveReferenceForHealthCheckID(ctx, apiReader, ko); err != nil {
+		return &resource{ko}, (resourceHasReferences || fieldHasReferences), err
+	} else {
+		resourceHasReferences = resourceHasReferences || fieldHasReferences
+	}
+
 	if fieldHasReferences, err := rm.resolveReferenceForHostedZoneID(ctx, apiReader, ko); err != nil {
 		return &resource{ko}, (resourceHasReferences || fieldHasReferences), err
 	} else {
@@ -73,11 +83,98 @@ func (rm *resourceManager) ResolveReferences(
 // identifier field.
 func validateReferenceFields(ko *svcapitypes.RecordSet) error {
 
+	if ko.Spec.HealthCheckRef != nil && ko.Spec.HealthCheckID != nil {
+		return ackerr.ResourceReferenceAndIDNotSupportedFor("HealthCheckID", "HealthCheckRef")
+	}
+
 	if ko.Spec.HostedZoneRef != nil && ko.Spec.HostedZoneID != nil {
 		return ackerr.ResourceReferenceAndIDNotSupportedFor("HostedZoneID", "HostedZoneRef")
 	}
 	if ko.Spec.HostedZoneRef == nil && ko.Spec.HostedZoneID == nil {
 		return ackerr.ResourceReferenceOrIDRequiredFor("HostedZoneID", "HostedZoneRef")
+	}
+	return nil
+}
+
+// resolveReferenceForHealthCheckID reads the resource referenced
+// from HealthCheckRef field and sets the HealthCheckID
+// from referenced resource. Returns a boolean indicating whether a reference
+// contains references, or an error
+func (rm *resourceManager) resolveReferenceForHealthCheckID(
+	ctx context.Context,
+	apiReader client.Reader,
+	ko *svcapitypes.RecordSet,
+) (hasReferences bool, err error) {
+	if ko.Spec.HealthCheckRef != nil && ko.Spec.HealthCheckRef.From != nil {
+		hasReferences = true
+		arr := ko.Spec.HealthCheckRef.From
+		if arr.Name == nil || *arr.Name == "" {
+			return hasReferences, fmt.Errorf("provided resource reference is nil or empty: HealthCheckRef")
+		}
+		namespace := ko.ObjectMeta.GetNamespace()
+		if arr.Namespace != nil && *arr.Namespace != "" {
+			namespace = *arr.Namespace
+		}
+		obj := &svcapitypes.HealthCheck{}
+		if err := getReferencedResourceState_HealthCheck(ctx, apiReader, obj, *arr.Name, namespace); err != nil {
+			return hasReferences, err
+		}
+		ko.Spec.HealthCheckID = (*string)(obj.Status.ID)
+	}
+
+	return hasReferences, nil
+}
+
+// getReferencedResourceState_HealthCheck looks up whether a referenced resource
+// exists and is in a ACK.ResourceSynced=True state. If the referenced resource does exist and is
+// in a Synced state, returns nil, otherwise returns `ackerr.ResourceReferenceTerminalFor` or
+// `ResourceReferenceNotSyncedFor` depending on if the resource is in a Terminal state.
+func getReferencedResourceState_HealthCheck(
+	ctx context.Context,
+	apiReader client.Reader,
+	obj *svcapitypes.HealthCheck,
+	name string, // the Kubernetes name of the referenced resource
+	namespace string, // the Kubernetes namespace of the referenced resource
+) error {
+	namespacedName := types.NamespacedName{
+		Namespace: namespace,
+		Name:      name,
+	}
+	err := apiReader.Get(ctx, namespacedName, obj)
+	if err != nil {
+		return err
+	}
+	var refResourceTerminal bool
+	for _, cond := range obj.Status.Conditions {
+		if cond.Type == ackv1alpha1.ConditionTypeTerminal &&
+			cond.Status == corev1.ConditionTrue {
+			return ackerr.ResourceReferenceTerminalFor(
+				"HealthCheck",
+				namespace, name)
+		}
+	}
+	if refResourceTerminal {
+		return ackerr.ResourceReferenceTerminalFor(
+			"HealthCheck",
+			namespace, name)
+	}
+	var refResourceSynced bool
+	for _, cond := range obj.Status.Conditions {
+		if cond.Type == ackv1alpha1.ConditionTypeResourceSynced &&
+			cond.Status == corev1.ConditionTrue {
+			refResourceSynced = true
+		}
+	}
+	if !refResourceSynced {
+		return ackerr.ResourceReferenceNotSyncedFor(
+			"HealthCheck",
+			namespace, name)
+	}
+	if obj.Status.ID == nil {
+		return ackerr.ResourceReferenceMissingTargetFieldFor(
+			"HealthCheck",
+			namespace, name,
+			"Status.ID")
 	}
 	return nil
 }

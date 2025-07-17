@@ -1164,6 +1164,11 @@ func (in *RecordSetSpec) DeepCopyInto(out *RecordSetSpec) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.HealthCheckRef != nil {
+		in, out := &in.HealthCheckRef, &out.HealthCheckRef
+		*out = new(corev1alpha1.AWSResourceReferenceWrapper)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.HostedZoneID != nil {
 		in, out := &in.HostedZoneID, &out.HostedZoneID
 		*out = new(string)
