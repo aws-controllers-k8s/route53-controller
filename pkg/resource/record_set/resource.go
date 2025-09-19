@@ -112,16 +112,16 @@ func (r *resource) SetIdentifiers(identifier *ackv1alpha1.AWSIdentifiers) error 
 
 // PopulateResourceFromAnnotation populates the fields passed from adoption annotation
 func (r *resource) PopulateResourceFromAnnotation(fields map[string]string) error {
-	tmp, ok := fields["id"]
+	primaryKey, ok := fields["id"]
 	if !ok {
 		return ackerrors.NewTerminalError(fmt.Errorf("required field missing: id"))
 	}
-	r.ko.Status.ID = &tmp
-
-	f0, f0ok := fields["hostedZoneID"]
-	if f0ok {
-		r.ko.Spec.HostedZoneID = aws.String(f0)
+	r.ko.Status.ID = &primaryKey
+	f0, ok := fields["hostedZoneID"]
+	if !ok {
+		return ackerrors.NewTerminalError(fmt.Errorf("required field missing: hostedZoneID"))
 	}
+	r.ko.Spec.HostedZoneID = &f0
 
 	if f1, f1ok := fields["recordType"]; f1ok {
 		r.ko.Spec.RecordType = &f1
