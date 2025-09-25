@@ -103,6 +103,6 @@ def patch_route53_resource(ref, updates):
 
     res = k8s.patch_custom_resource(ref, updates)
     time.sleep(MODIFY_WAIT_AFTER_SECONDS)
-    assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+    assert k8s.wait_on_condition(ref, "Ready", "True", wait_periods=5)
 
     return res
