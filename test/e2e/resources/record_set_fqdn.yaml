@@ -1,0 +1,11 @@
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: RecordSet
+metadata:
+  name: $FQDN_RECORD_NAME
+spec:
+  name: $FQDN_RECORD_NAME_SPEC
+  hostedZoneID: $HOSTED_ZONE_ID
+  recordType: A
+  resourceRecords:
+  - value: $IP_ADDR
+  ttl: 300

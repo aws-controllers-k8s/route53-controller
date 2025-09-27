@@ -317,7 +317,13 @@ func (rm *resourceManager) getDNSName(
 	domain string,
 ) (dnsName string) {
 	if r.ko.Spec.Name != nil {
-		dnsName += *r.ko.Spec.Name + "."
+		dnsName = *r.ko.Spec.Name
+	}
+
+	if strings.HasSuffix(dnsName, ".") {
+		return dnsName
+	} else if len(dnsName) > 0 {
+		dnsName += "."
 	}
 	dnsName += domain
 	return dnsName
