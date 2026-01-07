@@ -17,16 +17,15 @@ package record_set
 
 import (
 	"bytes"
-	"reflect"
 
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
 	acktags "github.com/aws-controllers-k8s/runtime/pkg/tags"
+	"k8s.io/apimachinery/pkg/api/equality"
 )
 
 // Hack to avoid import errors during build...
 var (
 	_ = &bytes.Buffer{}
-	_ = &reflect.Method{}
 	_ = &acktags.Tags{}
 )
 
@@ -125,7 +124,7 @@ func newResourceDelta(
 			delta.Add("Spec.HealthCheckID", a.ko.Spec.HealthCheckID, b.ko.Spec.HealthCheckID)
 		}
 	}
-	if !reflect.DeepEqual(a.ko.Spec.HealthCheckRef, b.ko.Spec.HealthCheckRef) {
+	if !equality.Semantic.Equalities.DeepEqual(a.ko.Spec.HealthCheckRef, b.ko.Spec.HealthCheckRef) {
 		delta.Add("Spec.HealthCheckRef", a.ko.Spec.HealthCheckRef, b.ko.Spec.HealthCheckRef)
 	}
 	if ackcompare.HasNilDifference(a.ko.Spec.HostedZoneID, b.ko.Spec.HostedZoneID) {
@@ -135,7 +134,7 @@ func newResourceDelta(
 			delta.Add("Spec.HostedZoneID", a.ko.Spec.HostedZoneID, b.ko.Spec.HostedZoneID)
 		}
 	}
-	if !reflect.DeepEqual(a.ko.Spec.HostedZoneRef, b.ko.Spec.HostedZoneRef) {
+	if !equality.Semantic.Equalities.DeepEqual(a.ko.Spec.HostedZoneRef, b.ko.Spec.HostedZoneRef) {
 		delta.Add("Spec.HostedZoneRef", a.ko.Spec.HostedZoneRef, b.ko.Spec.HostedZoneRef)
 	}
 	if ackcompare.HasNilDifference(a.ko.Spec.MultiValueAnswer, b.ko.Spec.MultiValueAnswer) {
@@ -169,7 +168,7 @@ func newResourceDelta(
 	if len(a.ko.Spec.ResourceRecords) != len(b.ko.Spec.ResourceRecords) {
 		delta.Add("Spec.ResourceRecords", a.ko.Spec.ResourceRecords, b.ko.Spec.ResourceRecords)
 	} else if len(a.ko.Spec.ResourceRecords) > 0 {
-		if !reflect.DeepEqual(a.ko.Spec.ResourceRecords, b.ko.Spec.ResourceRecords) {
+		if !equality.Semantic.Equalities.DeepEqual(a.ko.Spec.ResourceRecords, b.ko.Spec.ResourceRecords) {
 			delta.Add("Spec.ResourceRecords", a.ko.Spec.ResourceRecords, b.ko.Spec.ResourceRecords)
 		}
 	}
