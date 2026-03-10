@@ -58,8 +58,6 @@ resources:
           operation: ListResourceRecordSets
           path: ResourceRecordSets.AliasTarget
       # This field cannot be ignored, but values for this will be overriden and should not be used
-      ChangeBatch:
-        is_required: false
       CidrRoutingConfig:
         from:
           operation: ListResourceRecordSets
@@ -88,7 +86,6 @@ resources:
         is_immutable: true
       ID:
         is_primary_key: true
-        documentation: "ID represents the ChangeID that is returned after a successful ChangeResourceRecordSet request"
       MultiValueAnswer:
         from:
           operation: ListResourceRecordSets
@@ -217,13 +214,6 @@ resources:
           is_ignored: True
       HealthCheckConfig.Type:
         go_tag: json:"type,omitempty"
-        is_immutable: true
-      HealthCheckConfig.MeasureLatency:
-        is_immutable: true
-      HealthCheckConfig.RequestInterval:
-        is_immutable: true
-      HealthCheckConfig.RoutingControlArn:
-        is_immutable: true
     hooks:
       delta_pre_compare:
         code: compareTags(delta, a, b)
