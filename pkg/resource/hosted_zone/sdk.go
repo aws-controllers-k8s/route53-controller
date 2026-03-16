@@ -148,6 +148,19 @@ func (rm *resourceManager) sdkFind(
 		ko.Status.DelegationSet = nil
 	}
 
+	// Always record the authoritative VPC list in status so that
+	// syncVPCAssociations can use it without an extra GetHostedZone call.
+	ko.Status.AssociatedVPCs = nil
+	for _, v := range resp.VPCs {
+		if v.VPCId == nil {
+			continue
+		}
+		region := string(v.VPCRegion)
+		ko.Status.AssociatedVPCs = append(ko.Status.AssociatedVPCs, &svcapitypes.VPC{
+			VPCID:     v.VPCId,
+			VPCRegion: &region,
+		})
+	}
 	return &resource{ko}, nil
 }
 
@@ -191,11 +204,24 @@ func (rm *resourceManager) sdkCreate(
 	if err != nil {
 		return nil, err
 	}
+	// Validate VPC field configuration before attempting create.
+	if err := validateVPCFields(desired.ko.Spec); err != nil {
+		return nil, err
+	}
+
+	// If spec.vpcs is set (and spec.vpc is nil), inject vpcs[0] as the creation
+	// VPC. The generated newCreateRequestPayload leaves input.VPC nil when
+	// spec.vpc is nil. The user controls which VPC is primary by placing it first.
+	if len(desired.ko.Spec.VPCs) > 0 {
+		input.VPC = &svcsdktypes.VPC{
+			VPCId:     desired.ko.Spec.VPCs[0].VPCID,
+			VPCRegion: svcsdktypes.VPCRegion(*desired.ko.Spec.VPCs[0].VPCRegion),
+		}
+	}
+
 	// You must use a unique CallerReference string every time you submit a
 	// CreateHostedZone request. CallerReference can be any unique string, for
 	// example, a date/timestamp.
-	// TODO: Name is not sufficient, since a failed request cannot be retried.
-	// We might need to import the `time` package into `sdk.go`
 	input.CallerReference = aws.String(getCallerReference(desired.ko))
 
 	var resp *svcsdk.CreateHostedZoneOutput
@@ -268,14 +294,33 @@ func (rm *resourceManager) sdkCreate(
 			ko.Status.DelegationSet = nil
 		}
 
+		// Seed the current VPC list from the create response so that
+		// syncVPCAssociations knows the initial VPC is already associated
+		// and does not attempt to re-associate it.
+		if resp.VPC != nil && resp.VPC.VPCId != nil {
+			region := string(resp.VPC.VPCRegion)
+			latest.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+				{
+					VPCID:     resp.VPC.VPCId,
+					VPCRegion: &region,
+				},
+			}
+		}
+
 		// This is create operation. So, no tags are present in HostedZone.
 		// So, 'latest' is empty except we have copied 'ID' into the status to
 		// make syncTags() happy.
 		if err := rm.syncTags(ctx, desired, latest); err != nil {
 			return nil, err
 		}
-	}
 
+		// Sync additional VPC associations during create. The new zone already
+		// has resp.VPC associated; syncVPCAssociations will associate the rest.
+		// Return ko (not nil) on error so status.id is written to k8s.
+		if err := rm.syncVPCAssociations(ctx, rm.sdkapi, desired, latest); err != nil {
+			return &resource{ko}, err
+		}
+	}
 	return &resource{ko}, nil
 }
 
@@ -338,6 +383,24 @@ func (rm *resourceManager) sdkDelete(
 	defer func() {
 		exit(err)
 	}()
+	// Disassociate all but vpcs[0] before deletion.
+	// Route53 rejects DeleteHostedZone if >1 VPC is associated.
+	// Use Status.AssociatedVPCs (not Spec.VPCs) to check AWS actual state — a
+	// failed prior sync could leave more VPCs associated than the spec reflects.
+	// Keep Spec.VPCs[0] (the user's intended primary) and disassociate the rest.
+	// DeleteHostedZone removes the zone and its final VPC association.
+	//
+	// Note: users on the legacy spec.vpc path who have manually associated additional
+	// VPCs out-of-band must disassociate them manually before deletion — this
+	// controller does not clean them up on the spec.vpc path.
+	if shouldRunVPCPreCleanup(r) {
+		desired := rm.concreteResource(r.DeepCopy())
+		desired.ko.Spec.VPCs = []*svcapitypes.VPC{r.ko.Spec.VPCs[0]}
+		if err = rm.syncVPCAssociations(ctx, rm.sdkapi, desired, r); err != nil {
+			return nil, err
+		}
+	}
+
 	input, err := rm.newDeleteRequestPayload(r)
 	if err != nil {
 		return nil, err

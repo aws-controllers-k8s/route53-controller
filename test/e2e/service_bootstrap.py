@@ -23,7 +23,9 @@ def service_bootstrap() -> Resources:
     logging.getLogger().setLevel(logging.INFO)
     
     resources = BootstrapResources(
-        HostedZoneVPC=VPC("hosted-zone-vpc", num_public_subnet=2, num_private_subnet=2)
+        HostedZoneVPC=VPC("hosted-zone-vpc", num_public_subnet=2, num_private_subnet=2),
+        VPC2=VPC("vpc-2", num_public_subnet=1, num_private_subnet=1),
+        VPC3=VPC("vpc-3", num_public_subnet=1, num_private_subnet=1),
     )
 
     try:

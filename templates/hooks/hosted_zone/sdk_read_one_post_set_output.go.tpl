@@ -11,3 +11,17 @@
 	} else {
 		ko.Status.DelegationSet = nil
 	}
+
+	// Always record the authoritative VPC list in status so that
+	// syncVPCAssociations can use it without an extra GetHostedZone call.
+	ko.Status.AssociatedVPCs = nil
+	for _, v := range resp.VPCs {
+		if v.VPCId == nil {
+			continue
+		}
+		region := string(v.VPCRegion)
+		ko.Status.AssociatedVPCs = append(ko.Status.AssociatedVPCs, &svcapitypes.VPC{
+			VPCID:     v.VPCId,
+			VPCRegion: &region,
+		})
+	}

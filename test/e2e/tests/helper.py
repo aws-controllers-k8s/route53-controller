@@ -39,6 +39,18 @@ class Route53Validator:
         except self.route53_client.exceptions.ClientError:
             pass
         assert found is exists
+
+    def assert_vpc_association(self, hosted_zone_id: str, vpc_id: str, exists=True):
+        found = False
+        try:
+            res = self.route53_client.get_hosted_zone(Id=hosted_zone_id)
+            for vpc in res.get("VPCs", []):
+                if vpc.get("VPCId") == vpc_id:
+                    found = True
+                    break
+        except self.route53_client.exceptions.ClientError:
+            pass
+        assert found is exists
     
     def assert_health_check(self, cr, exists=True):
         res = None

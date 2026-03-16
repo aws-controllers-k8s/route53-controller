@@ -23,6 +23,8 @@ from e2e import bootstrap_directory
 @dataclass
 class BootstrapResources(Resources):
     HostedZoneVPC: VPC
+    VPC2: VPC
+    VPC3: VPC
 
 _bootstrap_resources = None
 
