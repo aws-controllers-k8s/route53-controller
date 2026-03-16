@@ -27,6 +27,7 @@ import (
 var (
 	_ = &bytes.Buffer{}
 	_ = &acktags.Tags{}
+	_ = equality.Semantic
 )
 
 // newResourceDelta returns a new `ackcompare.Delta` used to compare two

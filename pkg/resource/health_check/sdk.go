@@ -52,6 +52,7 @@ var (
 	_ = fmt.Sprintf("")
 	_ = &ackrequeue.NoRequeue{}
 	_ = &aws.Config{}
+	_ = math.MaxInt32
 )
 
 // sdkFind returns SDK-specific information about a supplied resource

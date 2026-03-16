@@ -21,6 +21,7 @@ import (
 	ackv1alpha1 "github.com/aws-controllers-k8s/runtime/apis/core/v1alpha1"
 	ackerrors "github.com/aws-controllers-k8s/runtime/pkg/errors"
 	acktypes "github.com/aws-controllers-k8s/runtime/pkg/types"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	rtclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -30,6 +31,8 @@ import (
 // Hack to avoid import errors during build...
 var (
 	_ = &ackerrors.MissingNameIdentifier
+	_ = fmt.Sprintf
+	_ = aws.String
 )
 
 // resource implements the `aws-controller-k8s/runtime/pkg/types.AWSResource`

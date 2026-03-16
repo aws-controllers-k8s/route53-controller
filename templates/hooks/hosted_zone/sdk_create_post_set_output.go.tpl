@@ -19,4 +19,11 @@
 		if err := rm.syncTags(ctx, desired, latest); err != nil {
 			return nil, err
 		}
+
+		// Sync additional VPC associations during create. The new zone has no
+		// VPCs associated yet, so syncVPCAssociations will associate all desired
+		// VPCs. Return ko (not nil) on error so status.id is written to k8s.
+		if err := rm.syncVPCAssociations(ctx, rm.sdkapi, desired, latest); err != nil {
+			return &resource{ko}, err
+		}
 	}

@@ -23,8 +23,9 @@ import (
 // HostedZoneSpec defines the desired state of HostedZone.
 //
 // A complex type that contains general information about the hosted zone.
+// +kubebuilder:validation:XValidation:rule="!has(self.hostedZoneConfig) || !self.hostedZoneConfig.privateZone || has(self.vpc)",message="spec.vpc is required for private hosted zones"
 type HostedZoneSpec struct {
-
+	AdditionalVPCs []*VPC `json:"additionalVPCs,omitempty"`
 	// If you want to associate a reusable delegation set with this hosted zone,
 	// the ID that Amazon Route 53 assigned to the reusable delegation set when
 	// you created it. For more information about reusable delegation sets, see

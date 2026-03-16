@@ -267,7 +267,6 @@ func (rm *resourceManager) IsSynced(ctx context.Context, res acktypes.AWSResourc
 		// Should never happen... if it does, it's buggy code.
 		panic("resource manager's IsSynced() method received resource with nil CR object")
 	}
-
 	return true, nil
 }
 

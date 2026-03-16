@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 
@@ -51,6 +52,7 @@ var (
 	_ = fmt.Sprintf("")
 	_ = &ackrequeue.NoRequeue{}
 	_ = &aws.Config{}
+	_ = math.MaxInt32
 )
 
 // sdkFind returns SDK-specific information about a supplied resource
@@ -147,6 +149,8 @@ func (rm *resourceManager) sdkFind(
 	} else {
 		ko.Status.DelegationSet = nil
 	}
+
+	populateAdditionalVPCs(ko, resp.VPCs)
 
 	return &resource{ko}, nil
 }
@@ -274,6 +278,13 @@ func (rm *resourceManager) sdkCreate(
 		if err := rm.syncTags(ctx, desired, latest); err != nil {
 			return nil, err
 		}
+
+		// Sync additional VPC associations during create. The new zone has no
+		// VPCs associated yet, so syncVPCAssociations will associate all desired
+		// VPCs. Return ko (not nil) on error so status.id is written to k8s.
+		if err := rm.syncVPCAssociations(ctx, rm.sdkapi, desired, latest); err != nil {
+			return &resource{ko}, err
+		}
 	}
 
 	return &resource{ko}, nil
@@ -338,6 +349,16 @@ func (rm *resourceManager) sdkDelete(
 	defer func() {
 		exit(err)
 	}()
+	// Disassociate additional VPCs before deletion.
+	// Route53 rejects DeleteHostedZone if >1 VPC is associated.
+	if len(r.ko.Spec.AdditionalVPCs) > 0 {
+		empty := rm.concreteResource(r.DeepCopy())
+		empty.ko.Spec.AdditionalVPCs = nil
+		if err = rm.syncVPCAssociations(ctx, rm.sdkapi, empty, r); err != nil {
+			return nil, err
+		}
+	}
+
 	input, err := rm.newDeleteRequestPayload(r)
 	if err != nil {
 		return nil, err

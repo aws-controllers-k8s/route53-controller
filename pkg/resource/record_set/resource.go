@@ -31,6 +31,8 @@ import (
 // Hack to avoid import errors during build...
 var (
 	_ = &ackerrors.MissingNameIdentifier
+	_ = fmt.Sprintf
+	_ = aws.String
 )
 
 // resource implements the `aws-controller-k8s/runtime/pkg/types.AWSResource`

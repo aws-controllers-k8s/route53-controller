@@ -42,6 +42,24 @@ spec:
 
               A complex type that contains general information about the hosted zone.
             properties:
+              additionalVPCs:
+                items:
+                  description: |-
+                    (Private hosted zones only) A complex type that contains information about
+                    an Amazon VPC.
+
+                    If you associate a private hosted zone with an Amazon VPC when you make a
+                    CreateHostedZone (https://docs.aws.amazon.com/Route53/latest/APIReference/API_CreateHostedZone.html)
+                    request, the following parameters are also required.
+                  properties:
+                    vpcID:
+                      description: (Private hosted zones only) The ID of an Amazon
+                        VPC.
+                      type: string
+                    vpcRegion:
+                      type: string
+                  type: object
+                type: array
               delegationSetID:
                 description: |-
                   If you want to associate a reusable delegation set with this hosted zone,
@@ -122,6 +140,10 @@ spec:
             required:
             - name
             type: object
+            x-kubernetes-validations:
+            - message: spec.vpc is required for private hosted zones
+              rule: '!has(self.hostedZoneConfig) || !self.hostedZoneConfig.privateZone
+                || has(self.vpc)'
           status:
             description: HostedZoneStatus defines the observed state of HostedZone
             properties:

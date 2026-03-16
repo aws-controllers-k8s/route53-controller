@@ -11,3 +11,6 @@
 	} else {
 		ko.Status.DelegationSet = nil
 	}
+
+	populateAdditionalVPCs(ko, resp.VPCs)
+
