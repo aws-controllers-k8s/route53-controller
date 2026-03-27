@@ -76,11 +76,11 @@ func (rm *resourceManager) customUpdateHostedZone(
 		}
 		// Reflect the new association state in status immediately rather than
 		// waiting for the next sdkFind call.
-		if len(desired.ko.Spec.VPCs) > 0 {
-			updated.ko.Status.AssociatedVPCs = desired.ko.Spec.VPCs
-		} else if desired.ko.Spec.VPC != nil {
-			updated.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{desired.ko.Spec.VPC}
-		}
+		// if len(desired.ko.Spec.VPCs) > 0 {
+		// 	updated.ko.Status.AssociatedVPCs = desired.ko.Spec.VPCs
+		// } else if desired.ko.Spec.VPC != nil {
+		// 	updated.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{desired.ko.Spec.VPC}
+		// }
 	}
 
 	return updated, nil
@@ -268,7 +268,7 @@ func compareVPCs(
 	if aVPCs == nil {
 		return
 	}
-	bVPCs := b.ko.Status.AssociatedVPCs
+	bVPCs := b.ko.Spec.VPCs
 	if len(aVPCs) != len(bVPCs) {
 		delta.Add("Spec.VPCs", aVPCs, bVPCs)
 		return
@@ -307,7 +307,7 @@ func compareVPC(
 	if a.ko.Spec.VPC == nil {
 		return
 	}
-	bVPCs := b.ko.Status.AssociatedVPCs
+	bVPCs := b.ko.Spec.VPCs
 	if len(bVPCs) != 1 {
 		delta.Add("Spec.VPC", a.ko.Spec.VPC, bVPCs)
 		return
@@ -344,8 +344,7 @@ func vpcListToSet(vpcs []*svcapitypes.VPC) map[string]string {
 // that left more VPCs associated than the spec reflects is still cleaned up.
 // It applies on both the spec.vpcs path and the legacy spec.vpc path.
 func shouldRunVPCPreCleanup(r *resource) bool {
-	return len(r.ko.Status.AssociatedVPCs) > 1 &&
-		(len(r.ko.Spec.VPCs) > 0 || r.ko.Spec.VPC != nil)
+	return len(r.ko.Spec.VPCs) > 1
 }
 
 // syncVPCAssociations reconciles VPC associations for a private hosted zone.
@@ -388,7 +387,7 @@ func (rm *resourceManager) syncVPCAssociations(
 	// sdkFind (read path) and seeded from the create response (create path).
 	// This avoids an extra GetHostedZone call on every reconcile.
 	current := make(map[string]svcsdktypes.VPCRegion)
-	for _, v := range latest.ko.Status.AssociatedVPCs {
+	for _, v := range latest.ko.Spec.VPCs {
 		if v.VPCID != nil && v.VPCRegion != nil {
 			current[*v.VPCID] = svcsdktypes.VPCRegion(*v.VPCRegion)
 		}

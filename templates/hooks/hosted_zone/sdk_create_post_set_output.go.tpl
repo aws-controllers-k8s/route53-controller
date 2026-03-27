@@ -13,19 +13,6 @@
 			ko.Status.DelegationSet = nil
 		}
 
-		// Seed the current VPC list from the create response so that
-		// syncVPCAssociations knows the initial VPC is already associated
-		// and does not attempt to re-associate it.
-		if resp.VPC != nil && resp.VPC.VPCId != nil {
-			region := string(resp.VPC.VPCRegion)
-			latest.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
-				{
-					VPCID:     resp.VPC.VPCId,
-					VPCRegion: &region,
-				},
-			}
-		}
-
 		// This is create operation. So, no tags are present in HostedZone.
 		// So, 'latest' is empty except we have copied 'ID' into the status to
 		// make syncTags() happy.

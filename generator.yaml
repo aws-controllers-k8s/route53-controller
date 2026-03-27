@@ -163,10 +163,10 @@ resources:
       - InvalidInput
       - InvalidVPCId
     fields:
-      AssociatedVPCs:
-        custom_field:
-          list_of: VPC
-        is_read_only: true
+      # AssociatedVPCs:
+      #   custom_field:
+      #     list_of: VPC
+      #   is_read_only: true
       VPCs:
         custom_field:
           list_of: VPC
