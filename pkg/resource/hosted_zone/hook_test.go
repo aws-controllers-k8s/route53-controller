@@ -427,23 +427,6 @@ func TestCompareVPCs_NilVPCIDInA(t *testing.T) {
 	}
 }
 
-// Test: nil VPCID in latest (b) → delta.
-func TestCompareVPCs_NilVPCIDInB(t *testing.T) {
-	a := &resource{ko: &svcapitypes.HostedZone{}}
-	a.ko.Spec.VPCs = []*svcapitypes.VPC{
-		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
-	}
-	b := &resource{ko: &svcapitypes.HostedZone{}}
-	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
-		{VPCID: nil, VPCRegion: aws.String("us-east-1")},
-	}
-	delta := ackcompare.NewDelta()
-	compareVPCs(delta, a, b)
-	if !delta.DifferentAt("Spec.VPCs") {
-		t.Error("expected delta when b has nil VPCID")
-	}
-}
-
 // Test: same VPCs in different order → no delta.
 func TestCompareVPCs_SameVPCsDifferentOrder(t *testing.T) {
 	a := &resource{ko: &svcapitypes.HostedZone{}}
@@ -664,5 +647,146 @@ func TestCompareVPCs_BothEmpty(t *testing.T) {
 	compareVPCs(delta, a, b)
 	if delta.DifferentAt("Spec.VPCs") {
 		t.Error("expected no delta for both empty VPCs")
+	}
+}
+
+// ── compareVPC tests (spec.vpc legacy path) ──────────────────────────────────
+
+// Test: Spec.VPC is nil → no delta (not on spec.vpc path).
+func TestCompareVPC_NilSpecVPC(t *testing.T) {
+	a := &resource{ko: &svcapitypes.HostedZone{}}
+	b := &resource{ko: &svcapitypes.HostedZone{}}
+	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
+	}
+	delta := ackcompare.NewDelta()
+	compareVPC(delta, a, b)
+	if delta.DifferentAt("Spec.VPC") {
+		t.Error("expected no delta when Spec.VPC is nil")
+	}
+}
+
+// Test: desired VPC matches the sole associated VPC → no delta.
+func TestCompareVPC_Match(t *testing.T) {
+	a := &resource{ko: &svcapitypes.HostedZone{}}
+	a.ko.Spec.VPC = &svcapitypes.VPC{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")}
+	b := &resource{ko: &svcapitypes.HostedZone{}}
+	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
+	}
+	delta := ackcompare.NewDelta()
+	compareVPC(delta, a, b)
+	if delta.DifferentAt("Spec.VPC") {
+		t.Error("expected no delta when VPCs match")
+	}
+}
+
+// Test: desired VPC differs from associated VPC → delta.
+func TestCompareVPC_DifferentVPCID(t *testing.T) {
+	a := &resource{ko: &svcapitypes.HostedZone{}}
+	a.ko.Spec.VPC = &svcapitypes.VPC{VPCID: aws.String("vpc-2"), VPCRegion: aws.String("us-east-1")}
+	b := &resource{ko: &svcapitypes.HostedZone{}}
+	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
+	}
+	delta := ackcompare.NewDelta()
+	compareVPC(delta, a, b)
+	if !delta.DifferentAt("Spec.VPC") {
+		t.Error("expected delta when VPC IDs differ")
+	}
+}
+
+// Test: desired VPC region differs → delta.
+func TestCompareVPC_DifferentRegion(t *testing.T) {
+	a := &resource{ko: &svcapitypes.HostedZone{}}
+	a.ko.Spec.VPC = &svcapitypes.VPC{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-west-2")}
+	b := &resource{ko: &svcapitypes.HostedZone{}}
+	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
+	}
+	delta := ackcompare.NewDelta()
+	compareVPC(delta, a, b)
+	if !delta.DifferentAt("Spec.VPC") {
+		t.Error("expected delta when VPC regions differ")
+	}
+}
+
+// Test: AWS has more than one VPC while spec.vpc is set → delta.
+// (Shouldn't happen in normal operation but must be handled cleanly.)
+func TestCompareVPC_MultipleAssociated(t *testing.T) {
+	a := &resource{ko: &svcapitypes.HostedZone{}}
+	a.ko.Spec.VPC = &svcapitypes.VPC{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")}
+	b := &resource{ko: &svcapitypes.HostedZone{}}
+	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
+		{VPCID: aws.String("vpc-2"), VPCRegion: aws.String("us-west-2")},
+	}
+	delta := ackcompare.NewDelta()
+	compareVPC(delta, a, b)
+	if !delta.DifferentAt("Spec.VPC") {
+		t.Error("expected delta when AWS has extra VPCs")
+	}
+}
+
+// Test: AWS has no associated VPCs → delta.
+func TestCompareVPC_NoneAssociated(t *testing.T) {
+	a := &resource{ko: &svcapitypes.HostedZone{}}
+	a.ko.Spec.VPC = &svcapitypes.VPC{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")}
+	b := &resource{ko: &svcapitypes.HostedZone{}}
+	b.ko.Status.AssociatedVPCs = nil
+	delta := ackcompare.NewDelta()
+	compareVPC(delta, a, b)
+	if !delta.DifferentAt("Spec.VPC") {
+		t.Error("expected delta when no VPCs associated")
+	}
+}
+
+// ── shouldRunVPCPreCleanup tests ─────────────────────────────────────────────
+
+func TestShouldRunVPCPreCleanup_SpecVPCsMultiple(t *testing.T) {
+	r := &resource{ko: &svcapitypes.HostedZone{}}
+	r.ko.Spec.VPCs = []*svcapitypes.VPC{
+		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
+		{VPCID: aws.String("vpc-2"), VPCRegion: aws.String("us-west-2")},
+	}
+	r.ko.Status.AssociatedVPCs = r.ko.Spec.VPCs
+	if !shouldRunVPCPreCleanup(r) {
+		t.Error("expected cleanup for spec.vpcs with 2 VPCs")
+	}
+}
+
+func TestShouldRunVPCPreCleanup_SpecVPCSingle(t *testing.T) {
+	r := &resource{ko: &svcapitypes.HostedZone{}}
+	r.ko.Spec.VPCs = []*svcapitypes.VPC{
+		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
+	}
+	r.ko.Status.AssociatedVPCs = r.ko.Spec.VPCs
+	if shouldRunVPCPreCleanup(r) {
+		t.Error("expected no cleanup when only 1 VPC associated")
+	}
+}
+
+func TestShouldRunVPCPreCleanup_SpecVPCPathExtraVPCs(t *testing.T) {
+	// spec.vpc user who has out-of-band extra VPCs — should now trigger cleanup.
+	r := &resource{ko: &svcapitypes.HostedZone{}}
+	r.ko.Spec.VPC = &svcapitypes.VPC{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")}
+	r.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
+		{VPCID: aws.String("vpc-extra"), VPCRegion: aws.String("us-west-2")},
+	}
+	if !shouldRunVPCPreCleanup(r) {
+		t.Error("expected cleanup for spec.vpc path with extra associated VPCs")
+	}
+}
+
+func TestShouldRunVPCPreCleanup_NoSpecFields(t *testing.T) {
+	// Neither spec.vpc nor spec.vpcs set — don't attempt cleanup.
+	r := &resource{ko: &svcapitypes.HostedZone{}}
+	r.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
+		{VPCID: aws.String("vpc-2"), VPCRegion: aws.String("us-west-2")},
+	}
+	if shouldRunVPCPreCleanup(r) {
+		t.Error("expected no cleanup when neither spec field is set")
 	}
 }

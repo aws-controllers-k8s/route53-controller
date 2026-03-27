@@ -70,14 +70,17 @@ func (rm *resourceManager) customUpdateHostedZone(
 		}
 	}
 
-	if delta.DifferentAt("Spec.VPCs") {
+	if delta.DifferentAt("Spec.VPCs") || delta.DifferentAt("Spec.VPC") {
 		if err := rm.syncVPCAssociations(ctx, rm.sdkapi, desired, latest); err != nil {
 			return nil, err
 		}
-		// After a successful sync the AWS state matches Spec.VPCs, so reflect
-		// that immediately in the returned status rather than waiting for the
-		// next sdkFind call to correct it.
-		updated.ko.Status.AssociatedVPCs = desired.ko.Spec.VPCs
+		// Reflect the new association state in status immediately rather than
+		// waiting for the next sdkFind call.
+		if len(desired.ko.Spec.VPCs) > 0 {
+			updated.ko.Status.AssociatedVPCs = desired.ko.Spec.VPCs
+		} else if desired.ko.Spec.VPC != nil {
+			updated.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{desired.ko.Spec.VPC}
+		}
 	}
 
 	return updated, nil
@@ -260,7 +263,7 @@ func compareVPCs(
 	b *resource,
 ) {
 	// On the legacy spec.vpc path, Spec.VPCs is nil — skip this comparison.
-	// The Spec.VPC field is handled by the generated delta code.
+	// The Spec.VPC field is handled by compareVPC below.
 	aVPCs := a.ko.Spec.VPCs
 	if aVPCs == nil {
 		return
@@ -281,14 +284,45 @@ func compareVPCs(
 	}
 	setA := vpcListToSet(aVPCs)
 	for _, v := range bVPCs {
-		if v == nil || v.VPCID == nil || v.VPCRegion == nil {
-			delta.Add("Spec.VPCs", aVPCs, bVPCs)
-			return
-		}
 		if region, ok := setA[*v.VPCID]; !ok || region != *v.VPCRegion {
 			delta.Add("Spec.VPCs", aVPCs, bVPCs)
 			return
 		}
+	}
+}
+
+// compareVPC is a custom comparison function for the legacy spec.vpc path.
+// It compares desired.Spec.VPC against the VPCs actually associated in AWS
+// (latest.Status.AssociatedVPCs). This is necessary because sdkFind starts
+// with ko = r.ko.DeepCopy(), so latest.Spec.VPC is always a copy of
+// desired.Spec.VPC — the generated delta code for Spec.VPC never fires.
+// Uses "Spec.VPC" as the delta key — must match what customUpdateHostedZone checks.
+func compareVPC(
+	delta *ackcompare.Delta,
+	a *resource,
+	b *resource,
+) {
+	// Only applies on the spec.vpc (legacy) path.
+	// spec.vpcs path is handled by compareVPCs.
+	if a.ko.Spec.VPC == nil {
+		return
+	}
+	bVPCs := b.ko.Status.AssociatedVPCs
+	if len(bVPCs) != 1 {
+		delta.Add("Spec.VPC", a.ko.Spec.VPC, bVPCs)
+		return
+	}
+	v := bVPCs[0]
+	if v.VPCID == nil || v.VPCRegion == nil {
+		delta.Add("Spec.VPC", a.ko.Spec.VPC, bVPCs)
+		return
+	}
+	if a.ko.Spec.VPC.VPCID == nil || a.ko.Spec.VPC.VPCRegion == nil {
+		delta.Add("Spec.VPC", a.ko.Spec.VPC, bVPCs)
+		return
+	}
+	if *v.VPCID != *a.ko.Spec.VPC.VPCID || *v.VPCRegion != *a.ko.Spec.VPC.VPCRegion {
+		delta.Add("Spec.VPC", a.ko.Spec.VPC, bVPCs)
 	}
 }
 
@@ -308,9 +342,10 @@ func vpcListToSet(vpcs []*svcapitypes.VPC) map[string]string {
 // when more than one VPC is associated. The guard uses Status.AssociatedVPCs
 // (authoritative AWS state) rather than Spec.VPCs so that a failed prior sync
 // that left more VPCs associated than the spec reflects is still cleaned up.
-// It only applies on the spec.vpcs path (len(Spec.VPCs) > 0).
+// It applies on both the spec.vpcs path and the legacy spec.vpc path.
 func shouldRunVPCPreCleanup(r *resource) bool {
-	return len(r.ko.Status.AssociatedVPCs) > 1 && len(r.ko.Spec.VPCs) > 0
+	return len(r.ko.Status.AssociatedVPCs) > 1 &&
+		(len(r.ko.Spec.VPCs) > 0 || r.ko.Spec.VPC != nil)
 }
 
 // syncVPCAssociations reconciles VPC associations for a private hosted zone.

@@ -33,10 +33,14 @@
 			return nil, err
 		}
 
-		// Sync additional VPC associations during create. The new zone already
-		// has resp.VPC associated; syncVPCAssociations will associate the rest.
-		// Return ko (not nil) on error so status.id is written to k8s.
-		if err := rm.syncVPCAssociations(ctx, rm.sdkapi, desired, latest); err != nil {
-			return &resource{ko}, err
+		// If there are additional VPCs beyond the first (already associated by
+		// create), requeue so the update path handles the remaining associations.
+		// This ensures association errors are attributed to the sync phase, not
+		// the create phase, and that status.id is always written to k8s on create.
+		if len(desired.ko.Spec.VPCs) > 1 {
+			ackcondition.SetSynced(&resource{ko}, corev1.ConditionFalse,
+				aws.String("requeuing to associate additional VPCs"), nil)
+			return &resource{ko}, ackrequeue.NeededAfter(
+				fmt.Errorf("reconciling additional VPC associations"), 1*time.Second)
 		}
 	}
