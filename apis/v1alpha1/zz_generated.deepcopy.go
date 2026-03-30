@@ -888,17 +888,6 @@ func (in *HostedZoneStatus) DeepCopyInto(out *HostedZoneStatus) {
 			}
 		}
 	}
-	if in.AssociatedVPCs != nil {
-		in, out := &in.AssociatedVPCs, &out.AssociatedVPCs
-		*out = make([]*VPC, len(*in))
-		for i := range *in {
-			if (*in)[i] != nil {
-				in, out := &(*in)[i], &(*out)[i]
-				*out = new(VPC)
-				(*in).DeepCopyInto(*out)
-			}
-		}
-	}
 	if in.CallerReference != nil {
 		in, out := &in.CallerReference, &out.CallerReference
 		*out = new(string)

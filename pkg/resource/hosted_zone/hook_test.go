@@ -24,10 +24,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	svcsdk "github.com/aws/aws-sdk-go-v2/service/route53"
 	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	"k8s.io/apimachinery/pkg/runtime"
+	rtclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 // mockVPCClient records calls made to Associate/Disassociate.
-// GetHostedZone is no longer needed — current VPCs come from Status.AssociatedVPCs.
 type mockVPCClient struct {
 	associated    []string // vpcIDs passed to Associate
 	disassociated []string // vpcIDs passed to Disassociate
@@ -73,12 +75,12 @@ func makeResource(vpcID, vpcRegion string, extraVPCIDs []string) *resource {
 
 // Test: swapping Spec.VPC from vpc-A to vpc-B associates vpc-B and disassociates vpc-A.
 func TestSyncVPCAssociations_SwapPrimaryVPC(t *testing.T) {
-	// desired: primary=vpc-B; AWS currently has vpc-A only
 	desired := makeResource("vpc-B", "us-east-1", nil)
 	latest := makeResource("vpc-A", "us-east-1", nil)
 	latest.ko.Status.ID = desired.ko.Status.ID
 
-	latest.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	// Spec.VPCs on latest = AWS observed state (sdkFind output).
+	latest.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-A"), VPCRegion: aws.String("us-east-1")},
 	}
 	mock := &mockVPCClient{}
@@ -102,12 +104,11 @@ func TestSyncVPCAssociations_SwapPrimaryVPC(t *testing.T) {
 // zero VPCs; the associate loop runs first, so this would only occur when the new
 // primary VPC fails to associate before disassociation is attempted.
 func TestSyncVPCAssociations_LastVPCTerminal(t *testing.T) {
-	// desired: primary=vpc-B; AWS currently has vpc-A only (vpc-B not yet associated).
 	desired := makeResource("vpc-B", "us-east-1", nil)
 	latest := makeResource("vpc-A", "us-east-1", nil)
 	latest.ko.Status.ID = desired.ko.Status.ID
 
-	latest.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	latest.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-A"), VPCRegion: aws.String("us-east-1")},
 	}
 	mock := &mockVPCClient{disassocErr: &svcsdktypes.LastVPCAssociation{Message: aws.String("last VPC")}}
@@ -137,28 +138,15 @@ func makeResourceVPCs(vpcIDs []string) *resource {
 	return r
 }
 
-// makeResourceWithStatus builds a resource whose Status.AssociatedVPCs is
-// pre-populated — simulating a resource that has been through sdkFind.
-func makeResourceWithStatus(specVPCIDs []string, statusVPCIDs []string) *resource {
-	r := makeResourceVPCs(specVPCIDs)
-	for _, id := range statusVPCIDs {
-		vid := id
-		r.ko.Status.AssociatedVPCs = append(r.ko.Status.AssociatedVPCs, &svcapitypes.VPC{
-			VPCID:     &vid,
-			VPCRegion: aws.String("us-east-1"),
-		})
-	}
-	return r
-}
-
-// Test: syncVPCAssociations uses Status.AssociatedVPCs, not GetHostedZone.
-// Passing a mock with no getOutput verifies no GetHostedZone call is made.
-func TestSyncVPCAssociations_UsesStatusField_Associate(t *testing.T) {
+func TestSyncVPCAssociations_UsesSpecVPCs_Associate(t *testing.T) {
 	desired := makeResourceVPCs([]string{"vpc-A", "vpc-B"})
-	latest := makeResourceWithStatus([]string{"vpc-A"}, []string{"vpc-A"})
+	latest := makeResourceVPCs([]string{"vpc-A", "vpc-B"})
 	latest.ko.Status.ID = desired.ko.Status.ID
 
-	// mock has no GetHostedZone — if it were called it would panic
+	// Spec.VPCs on latest = AWS observed state: only vpc-A so far.
+	latest.ko.Spec.VPCs = []*svcapitypes.VPC{
+		{VPCID: aws.String("vpc-A"), VPCRegion: aws.String("us-east-1")},
+	}
 	mock := &mockVPCClient{}
 	rm := &resourceManager{}
 
@@ -174,11 +162,16 @@ func TestSyncVPCAssociations_UsesStatusField_Associate(t *testing.T) {
 	}
 }
 
-func TestSyncVPCAssociations_UsesStatusField_Disassociate(t *testing.T) {
+func TestSyncVPCAssociations_UsesSpecVPCs_Disassociate(t *testing.T) {
 	desired := makeResourceVPCs([]string{"vpc-A"})
-	latest := makeResourceWithStatus([]string{"vpc-A", "vpc-B"}, []string{"vpc-A", "vpc-B"})
+	latest := makeResourceVPCs([]string{"vpc-A"})
 	latest.ko.Status.ID = desired.ko.Status.ID
 
+	// Spec.VPCs on latest = AWS observed state: vpc-A and vpc-B.
+	latest.ko.Spec.VPCs = []*svcapitypes.VPC{
+		{VPCID: aws.String("vpc-A"), VPCRegion: aws.String("us-east-1")},
+		{VPCID: aws.String("vpc-B"), VPCRegion: aws.String("us-east-1")},
+	}
 	mock := &mockVPCClient{}
 	rm := &resourceManager{}
 
@@ -194,10 +187,10 @@ func TestSyncVPCAssociations_UsesStatusField_Disassociate(t *testing.T) {
 // Test: spec.vpcs desired=[vpc-A,vpc-B], AWS current=[vpc-A] → associates vpc-B.
 func TestSyncVPCAssociations_VPCsPath_Associate(t *testing.T) {
 	desired := makeResourceVPCs([]string{"vpc-A", "vpc-B"})
-	latest := makeResourceVPCs([]string{"vpc-A"})
+	latest := makeResourceVPCs([]string{"vpc-A", "vpc-B"})
 	latest.ko.Status.ID = desired.ko.Status.ID
 
-	latest.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	latest.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-A"), VPCRegion: aws.String("us-east-1")},
 	}
 	mock := &mockVPCClient{}
@@ -218,10 +211,10 @@ func TestSyncVPCAssociations_VPCsPath_Associate(t *testing.T) {
 // Test: spec.vpcs desired=[vpc-A], AWS current=[vpc-A,vpc-B] → disassociates vpc-B.
 func TestSyncVPCAssociations_VPCsPath_Disassociate(t *testing.T) {
 	desired := makeResourceVPCs([]string{"vpc-A"})
-	latest := makeResourceVPCs([]string{"vpc-A", "vpc-B"})
+	latest := makeResourceVPCs([]string{"vpc-A"})
 	latest.ko.Status.ID = desired.ko.Status.ID
 
-	latest.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	latest.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-A"), VPCRegion: aws.String("us-east-1")},
 		{VPCID: aws.String("vpc-B"), VPCRegion: aws.String("us-east-1")},
 	}
@@ -242,12 +235,11 @@ func TestSyncVPCAssociations_VPCsPath_Disassociate(t *testing.T) {
 
 // Test: ConflictingDomainExists on AssociateVPC is treated as idempotent (no error).
 func TestSyncVPCAssociations_VPCsPath_ConflictingDomainExistsIdempotent(t *testing.T) {
-	// desired has vpc-A and vpc-B; AWS currently has only vpc-A
 	desired := makeResourceVPCs([]string{"vpc-A", "vpc-B"})
-	latest := makeResourceVPCs([]string{"vpc-A"})
+	latest := makeResourceVPCs([]string{"vpc-A", "vpc-B"})
 	latest.ko.Status.ID = desired.ko.Status.ID
 
-	latest.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	latest.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-A"), VPCRegion: aws.String("us-east-1")},
 	}
 	mock := &mockVPCClient{assocErr: &svcsdktypes.ConflictingDomainExists{Message: aws.String("already associated")}}
@@ -417,7 +409,7 @@ func TestCompareVPCs_NilVPCIDInA(t *testing.T) {
 		{VPCID: nil, VPCRegion: aws.String("us-east-1")},
 	}
 	b := &resource{ko: &svcapitypes.HostedZone{}}
-	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	b.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
 	}
 	delta := ackcompare.NewDelta()
@@ -435,7 +427,7 @@ func TestCompareVPCs_SameVPCsDifferentOrder(t *testing.T) {
 		{VPCID: aws.String("vpc-2"), VPCRegion: aws.String("us-west-2")},
 	}
 	b := &resource{ko: &svcapitypes.HostedZone{}}
-	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	b.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-2"), VPCRegion: aws.String("us-west-2")},
 		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
 	}
@@ -453,7 +445,7 @@ func TestCompareVPCs_SameIDDifferentRegion(t *testing.T) {
 		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
 	}
 	b := &resource{ko: &svcapitypes.HostedZone{}}
-	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	b.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-west-2")},
 	}
 	delta := ackcompare.NewDelta()
@@ -463,13 +455,13 @@ func TestCompareVPCs_SameIDDifferentRegion(t *testing.T) {
 	}
 }
 
-// Test: delete pre-cleanup keeps vpcs[0] (user's intended primary) and disassociates the rest.
+// Test: delete pre-cleanup keeps Spec.VPCs[0] from the AWS list (sdkFind order) and disassociates the rest.
 func TestDeletePreCleanup_KeepsFirst(t *testing.T) {
-	// vpc-c is [0] — the user's intended primary, regardless of lexicographic order.
 	r := makeResourceVPCs([]string{"vpc-c", "vpc-a", "vpc-b"})
 	r.ko.Status.ID = aws.String("/hostedzone/Z123")
 
-	r.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	// Spec.VPCs = AWS observed state (set by sdkFind before delete).
+	r.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-a"), VPCRegion: aws.String("us-east-1")},
 		{VPCID: aws.String("vpc-b"), VPCRegion: aws.String("us-east-1")},
 		{VPCID: aws.String("vpc-c"), VPCRegion: aws.String("us-east-1")},
@@ -477,8 +469,8 @@ func TestDeletePreCleanup_KeepsFirst(t *testing.T) {
 	mock := &mockVPCClient{}
 	rm := &resourceManager{}
 
-	// Simulate what the delete template does: keep [0], build synthetic desired.
 	desired := rm.concreteResource(r.DeepCopy())
+	desired.ko.Spec.VPC = nil
 	desired.ko.Spec.VPCs = []*svcapitypes.VPC{r.ko.Spec.VPCs[0]}
 
 	err := rm.syncVPCAssociations(context.Background(), mock, desired, r)
@@ -489,8 +481,8 @@ func TestDeletePreCleanup_KeepsFirst(t *testing.T) {
 		t.Fatalf("expected 2 disassociated, got %d: %v", len(mock.disassociated), mock.disassociated)
 	}
 	for _, id := range mock.disassociated {
-		if id == "vpc-c" {
-			t.Errorf("vpc-c (keeper, vpcs[0]) should not have been disassociated")
+		if id == "vpc-a" {
+			t.Errorf("vpc-a (vpcs[0] in AWS list) should not have been disassociated")
 		}
 	}
 	if len(mock.associated) != 0 {
@@ -498,13 +490,14 @@ func TestDeletePreCleanup_KeepsFirst(t *testing.T) {
 	}
 }
 
-// Test: delete pre-cleanup triggers when Status.AssociatedVPCs > 1 even if Spec.VPCs has only 1 entry.
-// This covers the case where a prior sync failed midway, leaving more VPCs in AWS than the spec.
-func TestDeletePreCleanup_UsesStatusNotSpec(t *testing.T) {
-	// Spec has only 1 VPC (user already reduced it), but AWS still has 2.
+// TestDeletePreCleanup_UsesSpecVPCs verifies that the delete pre-cleanup uses
+// Spec.VPCs (the sdkFind-observed AWS state) to determine what to disassociate.
+func TestDeletePreCleanup_UsesSpecVPCs(t *testing.T) {
 	r := makeResourceVPCs([]string{"vpc-a"})
 	r.ko.Status.ID = aws.String("/hostedzone/Z123")
-	r.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	// Spec.VPCs = AWS actual state: both VPCs still associated despite spec
+	// having been updated to only one.
+	r.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-a"), VPCRegion: aws.String("us-east-1")},
 		{VPCID: aws.String("vpc-b"), VPCRegion: aws.String("us-east-1")},
 	}
@@ -512,12 +505,11 @@ func TestDeletePreCleanup_UsesStatusNotSpec(t *testing.T) {
 	mock := &mockVPCClient{}
 	rm := &resourceManager{}
 
-	// Use the production guard — a regression (e.g. reverting to len(Spec.VPCs) > 1)
-	// would be detected here because shouldRunVPCPreCleanup calls into sdk.go.
 	if !shouldRunVPCPreCleanup(r) {
 		t.Fatal("shouldRunVPCPreCleanup should have returned true")
 	}
 	desired := rm.concreteResource(r.DeepCopy())
+	desired.ko.Spec.VPC = nil
 	desired.ko.Spec.VPCs = []*svcapitypes.VPC{r.ko.Spec.VPCs[0]}
 	err := rm.syncVPCAssociations(context.Background(), mock, desired, r)
 	if err != nil {
@@ -532,43 +524,30 @@ func TestDeletePreCleanup_UsesStatusNotSpec(t *testing.T) {
 	}
 }
 
-// Test: boundary conditions for shouldRunVPCPreCleanup — regression-protects the
-// > 1 threshold on Status.AssociatedVPCs and the requirement that Spec.VPCs be non-empty.
 func TestShouldRunVPCPreCleanup(t *testing.T) {
 	tests := []struct {
 		name        string
-		statusVPCs  []*svcapitypes.VPC
 		specVPCs    []*svcapitypes.VPC
 		wantCleanup bool
 	}{
 		{
-			name:        "nil status VPCs → no cleanup",
-			statusVPCs:  nil,
-			specVPCs:    []*svcapitypes.VPC{{VPCID: aws.String("vpc-a"), VPCRegion: aws.String("us-east-1")}},
-			wantCleanup: false,
-		},
-		{
-			name:        "single status VPC → no cleanup (Route53 accepts deletion)",
-			statusVPCs:  []*svcapitypes.VPC{{VPCID: aws.String("vpc-a"), VPCRegion: aws.String("us-east-1")}},
-			specVPCs:    []*svcapitypes.VPC{{VPCID: aws.String("vpc-a"), VPCRegion: aws.String("us-east-1")}},
-			wantCleanup: false,
-		},
-		{
-			name: "two status VPCs but empty spec VPCs → no cleanup (legacy path, cannot determine keeper)",
-			statusVPCs: []*svcapitypes.VPC{
-				{VPCID: aws.String("vpc-a"), VPCRegion: aws.String("us-east-1")},
-				{VPCID: aws.String("vpc-b"), VPCRegion: aws.String("us-east-1")},
-			},
+			name:        "nil Spec.VPCs → no cleanup",
 			specVPCs:    nil,
 			wantCleanup: false,
 		},
 		{
-			name: "two status VPCs and one spec VPC → cleanup needed",
-			statusVPCs: []*svcapitypes.VPC{
+			name: "single Spec.VPC → no cleanup",
+			specVPCs: []*svcapitypes.VPC{
+				{VPCID: aws.String("vpc-a"), VPCRegion: aws.String("us-east-1")},
+			},
+			wantCleanup: false,
+		},
+		{
+			name: "two Spec.VPCs → cleanup needed",
+			specVPCs: []*svcapitypes.VPC{
 				{VPCID: aws.String("vpc-a"), VPCRegion: aws.String("us-east-1")},
 				{VPCID: aws.String("vpc-b"), VPCRegion: aws.String("us-east-1")},
 			},
-			specVPCs:    []*svcapitypes.VPC{{VPCID: aws.String("vpc-a"), VPCRegion: aws.String("us-east-1")}},
 			wantCleanup: true,
 		},
 	}
@@ -576,7 +555,6 @@ func TestShouldRunVPCPreCleanup(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r := &resource{ko: &svcapitypes.HostedZone{}}
 			r.ko.Spec.VPCs = tc.specVPCs
-			r.ko.Status.AssociatedVPCs = tc.statusVPCs
 			got := shouldRunVPCPreCleanup(r)
 			if got != tc.wantCleanup {
 				t.Errorf("shouldRunVPCPreCleanup() = %v, want %v", got, tc.wantCleanup)
@@ -606,39 +584,6 @@ func TestCustomUpdateHostedZone_MutualExclusivity(t *testing.T) {
 	}
 }
 
-// Test: customUpdateHostedZone sets Status.AssociatedVPCs to match Spec.VPCs
-// after a successful sync so the status is immediately accurate without
-// waiting for the next sdkFind call.
-//
-// Scenario: desired.Spec.VPCs = [vpc-1], but the k8s status (carried on the
-// desired object) still shows [vpc-1, vpc-2] because the previous update
-// returned stale status. AWS is already in sync (latest.Status.AssociatedVPCs
-// = [vpc-1]), so syncVPCAssociations makes no API calls — no SDK client needed.
-func TestCustomUpdateHostedZone_StatusUpdatedAfterVPCSync(t *testing.T) {
-	// desired: spec has only vpc-1; stale status has two (the bug condition)
-	desired := makeResourceWithStatus([]string{"vpc-1"}, []string{"vpc-1", "vpc-2"})
-	// latest: AWS already reflects the desired single-VPC state
-	latest := makeResourceWithStatus([]string{"vpc-1"}, []string{"vpc-1"})
-
-	delta := ackcompare.NewDelta()
-	delta.Add("Spec.VPCs", nil, nil)
-
-	// sdkapi is nil; syncVPCAssociations will make no calls because current == desired.
-	rm := &resourceManager{}
-	updated, err := rm.customUpdateHostedZone(context.Background(), desired, latest, delta)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Status.AssociatedVPCs must match Spec.VPCs — not the stale two-VPC value.
-	if len(updated.ko.Status.AssociatedVPCs) != 1 {
-		t.Fatalf("expected 1 AssociatedVPC, got %d", len(updated.ko.Status.AssociatedVPCs))
-	}
-	if *updated.ko.Status.AssociatedVPCs[0].VPCID != "vpc-1" {
-		t.Errorf("expected AssociatedVPCs[0] to be vpc-1, got %s", *updated.ko.Status.AssociatedVPCs[0].VPCID)
-	}
-}
-
 // Test: both nil/empty → no delta.
 func TestCompareVPCs_BothEmpty(t *testing.T) {
 	a := &resource{ko: &svcapitypes.HostedZone{}}
@@ -656,7 +601,7 @@ func TestCompareVPCs_BothEmpty(t *testing.T) {
 func TestCompareVPC_NilSpecVPC(t *testing.T) {
 	a := &resource{ko: &svcapitypes.HostedZone{}}
 	b := &resource{ko: &svcapitypes.HostedZone{}}
-	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	b.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
 	}
 	delta := ackcompare.NewDelta()
@@ -671,7 +616,7 @@ func TestCompareVPC_Match(t *testing.T) {
 	a := &resource{ko: &svcapitypes.HostedZone{}}
 	a.ko.Spec.VPC = &svcapitypes.VPC{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")}
 	b := &resource{ko: &svcapitypes.HostedZone{}}
-	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	b.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
 	}
 	delta := ackcompare.NewDelta()
@@ -686,7 +631,7 @@ func TestCompareVPC_DifferentVPCID(t *testing.T) {
 	a := &resource{ko: &svcapitypes.HostedZone{}}
 	a.ko.Spec.VPC = &svcapitypes.VPC{VPCID: aws.String("vpc-2"), VPCRegion: aws.String("us-east-1")}
 	b := &resource{ko: &svcapitypes.HostedZone{}}
-	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	b.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
 	}
 	delta := ackcompare.NewDelta()
@@ -701,7 +646,7 @@ func TestCompareVPC_DifferentRegion(t *testing.T) {
 	a := &resource{ko: &svcapitypes.HostedZone{}}
 	a.ko.Spec.VPC = &svcapitypes.VPC{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-west-2")}
 	b := &resource{ko: &svcapitypes.HostedZone{}}
-	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	b.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
 	}
 	delta := ackcompare.NewDelta()
@@ -717,7 +662,7 @@ func TestCompareVPC_MultipleAssociated(t *testing.T) {
 	a := &resource{ko: &svcapitypes.HostedZone{}}
 	a.ko.Spec.VPC = &svcapitypes.VPC{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")}
 	b := &resource{ko: &svcapitypes.HostedZone{}}
-	b.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	b.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
 		{VPCID: aws.String("vpc-2"), VPCRegion: aws.String("us-west-2")},
 	}
@@ -733,7 +678,7 @@ func TestCompareVPC_NoneAssociated(t *testing.T) {
 	a := &resource{ko: &svcapitypes.HostedZone{}}
 	a.ko.Spec.VPC = &svcapitypes.VPC{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")}
 	b := &resource{ko: &svcapitypes.HostedZone{}}
-	b.ko.Status.AssociatedVPCs = nil
+	b.ko.Spec.VPCs = nil
 	delta := ackcompare.NewDelta()
 	compareVPC(delta, a, b)
 	if !delta.DifferentAt("Spec.VPC") {
@@ -749,7 +694,6 @@ func TestShouldRunVPCPreCleanup_SpecVPCsMultiple(t *testing.T) {
 		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
 		{VPCID: aws.String("vpc-2"), VPCRegion: aws.String("us-west-2")},
 	}
-	r.ko.Status.AssociatedVPCs = r.ko.Spec.VPCs
 	if !shouldRunVPCPreCleanup(r) {
 		t.Error("expected cleanup for spec.vpcs with 2 VPCs")
 	}
@@ -760,17 +704,16 @@ func TestShouldRunVPCPreCleanup_SpecVPCSingle(t *testing.T) {
 	r.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
 	}
-	r.ko.Status.AssociatedVPCs = r.ko.Spec.VPCs
 	if shouldRunVPCPreCleanup(r) {
 		t.Error("expected no cleanup when only 1 VPC associated")
 	}
 }
 
 func TestShouldRunVPCPreCleanup_SpecVPCPathExtraVPCs(t *testing.T) {
-	// spec.vpc user who has out-of-band extra VPCs — should now trigger cleanup.
+	// spec.vpc user with out-of-band extra VPCs: sdkFind sees 2 in AWS.
 	r := &resource{ko: &svcapitypes.HostedZone{}}
 	r.ko.Spec.VPC = &svcapitypes.VPC{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")}
-	r.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
+	r.ko.Spec.VPCs = []*svcapitypes.VPC{
 		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
 		{VPCID: aws.String("vpc-extra"), VPCRegion: aws.String("us-west-2")},
 	}
@@ -779,14 +722,61 @@ func TestShouldRunVPCPreCleanup_SpecVPCPathExtraVPCs(t *testing.T) {
 	}
 }
 
-func TestShouldRunVPCPreCleanup_NoSpecFields(t *testing.T) {
-	// Neither spec.vpc nor spec.vpcs set — don't attempt cleanup.
-	r := &resource{ko: &svcapitypes.HostedZone{}}
-	r.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{
-		{VPCID: aws.String("vpc-1"), VPCRegion: aws.String("us-east-1")},
-		{VPCID: aws.String("vpc-2"), VPCRegion: aws.String("us-west-2")},
+func TestAdoptionPath_SpecVPCsReflectAWSState(t *testing.T) {
+	ctx := context.Background()
+
+	scheme := runtime.NewScheme()
+	_ = svcapitypes.AddToScheme(scheme)
+
+	newCR := func(vpcIDs []string) *svcapitypes.HostedZone {
+		hz := &svcapitypes.HostedZone{}
+		hz.Name = "test-zone"
+		hz.Namespace = "default"
+		hz.ResourceVersion = "1"
+		for _, id := range vpcIDs {
+			vid := id
+			hz.Spec.VPCs = append(hz.Spec.VPCs, &svcapitypes.VPC{
+				VPCID:     &vid,
+				VPCRegion: aws.String("us-east-1"),
+			})
+		}
+		return hz
 	}
-	if shouldRunVPCPreCleanup(r) {
-		t.Error("expected no cleanup when neither spec field is set")
+
+	applyPatch := func(t *testing.T, desired, latest *svcapitypes.HostedZone) *svcapitypes.HostedZone {
+		t.Helper()
+		kc := fake.NewClientBuilder().WithScheme(scheme).WithObjects(desired).Build()
+		patch := rtclient.MergeFrom(desired)
+		if err := kc.Patch(ctx, latest, patch); err != nil {
+			t.Fatalf("patch failed: %v", err)
+		}
+		result := &svcapitypes.HostedZone{}
+		if err := kc.Get(ctx, rtclient.ObjectKeyFromObject(desired), result); err != nil {
+			t.Fatalf("get failed: %v", err)
+		}
+		return result
 	}
+
+	// User submits a CR with two VPCs. AWS currently has only vpc-A.
+	desired := newCR([]string{"vpc-A", "vpc-B"})
+
+	t.Run("AdoptionPolicy_Adopt_OverwritesToAWSState", func(t *testing.T) {
+		// sdkFind sets Spec.VPCs = [A] (AWS actual state).
+		// AdoptionPolicy_Adopt is a strict import: the k8s CR is overwritten
+		// to reflect what actually exists in AWS. Dropping vpc-B is correct.
+		latest := desired.DeepCopy()
+		latest.Spec.VPCs = []*svcapitypes.VPC{
+			{VPCID: aws.String("vpc-A"), VPCRegion: aws.String("us-east-1")},
+		}
+
+		result := applyPatch(t, desired, latest)
+
+		// Correct behavior: spec.vpcs in k8s now reflects AWS actual state [A].
+		if len(result.Spec.VPCs) != 1 {
+			t.Errorf("expected spec.vpcs to be overwritten to AWS state [vpc-A], got %d VPCs", len(result.Spec.VPCs))
+		}
+		if *result.Spec.VPCs[0].VPCID != "vpc-A" {
+			t.Errorf("expected vpc-A, got %s", *result.Spec.VPCs[0].VPCID)
+		}
+	})
 }

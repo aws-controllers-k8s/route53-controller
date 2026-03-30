@@ -12,15 +12,15 @@
 		ko.Status.DelegationSet = nil
 	}
 
-	// Always record the authoritative VPC list in status so that
-	// syncVPCAssociations can use it without an extra GetHostedZone call.
-	ko.Status.AssociatedVPCs = nil
+	// Populate Spec.VPCs from the authoritative AWS VPC list so that
+	// compareVPCs / syncVPCAssociations can compare desired vs actual.
+	ko.Spec.VPCs = nil
 	for _, v := range resp.VPCs {
 		if v.VPCId == nil {
 			continue
 		}
 		region := string(v.VPCRegion)
-		ko.Status.AssociatedVPCs = append(ko.Status.AssociatedVPCs, &svcapitypes.VPC{
+		ko.Spec.VPCs = append(ko.Spec.VPCs, &svcapitypes.VPC{
 			VPCID:     v.VPCId,
 			VPCRegion: &region,
 		})

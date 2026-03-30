@@ -74,13 +74,6 @@ func (rm *resourceManager) customUpdateHostedZone(
 		if err := rm.syncVPCAssociations(ctx, rm.sdkapi, desired, latest); err != nil {
 			return nil, err
 		}
-		// Reflect the new association state in status immediately rather than
-		// waiting for the next sdkFind call.
-		if len(desired.ko.Spec.VPCs) > 0 {
-			updated.ko.Status.AssociatedVPCs = desired.ko.Spec.VPCs
-		} else if desired.ko.Spec.VPC != nil {
-			updated.ko.Status.AssociatedVPCs = []*svcapitypes.VPC{desired.ko.Spec.VPC}
-		}
 	}
 
 	return updated, nil
@@ -254,21 +247,21 @@ func validateVPCFields(spec svcapitypes.HostedZoneSpec) error {
 }
 
 // compareVPCs is a custom comparison function that diffs desired.Spec.VPCs
-// against latest.Status.AssociatedVPCs (the AWS actual state). Order is not
-// significant. Uses "Spec.VPCs" as the delta key — this must match what
-// customUpdateHostedZone checks.
+// against latest.Spec.VPCs (the AWS actual state, populated by sdkFind).
+// Order is not significant. Uses "Spec.VPCs" as the delta key — this must
+// match what customUpdateHostedZone checks.
 func compareVPCs(
 	delta *ackcompare.Delta,
 	a *resource,
 	b *resource,
 ) {
-	// On the legacy spec.vpc path, Spec.VPCs is nil — skip this comparison.
+	// On the legacy spec.vpc path, Spec.VPCs is nil on desired — skip.
 	// The Spec.VPC field is handled by compareVPC below.
 	aVPCs := a.ko.Spec.VPCs
 	if aVPCs == nil {
 		return
 	}
-	bVPCs := b.ko.Status.AssociatedVPCs
+	bVPCs := b.ko.Spec.VPCs
 	if len(aVPCs) != len(bVPCs) {
 		delta.Add("Spec.VPCs", aVPCs, bVPCs)
 		return
@@ -284,6 +277,10 @@ func compareVPCs(
 	}
 	setA := vpcListToSet(aVPCs)
 	for _, v := range bVPCs {
+		if v == nil || v.VPCID == nil || v.VPCRegion == nil {
+			delta.Add("Spec.VPCs", aVPCs, bVPCs)
+			return
+		}
 		if region, ok := setA[*v.VPCID]; !ok || region != *v.VPCRegion {
 			delta.Add("Spec.VPCs", aVPCs, bVPCs)
 			return
@@ -293,8 +290,8 @@ func compareVPCs(
 
 // compareVPC is a custom comparison function for the legacy spec.vpc path.
 // It compares desired.Spec.VPC against the VPCs actually associated in AWS
-// (latest.Status.AssociatedVPCs). This is necessary because sdkFind starts
-// with ko = r.ko.DeepCopy(), so latest.Spec.VPC is always a copy of
+// (latest.Spec.VPCs, populated by sdkFind). This is necessary because sdkFind
+// starts with ko = r.ko.DeepCopy(), so latest.Spec.VPC is always a copy of
 // desired.Spec.VPC — the generated delta code for Spec.VPC never fires.
 // Uses "Spec.VPC" as the delta key — must match what customUpdateHostedZone checks.
 func compareVPC(
@@ -302,12 +299,10 @@ func compareVPC(
 	a *resource,
 	b *resource,
 ) {
-	// Only applies on the spec.vpc (legacy) path.
-	// spec.vpcs path is handled by compareVPCs.
 	if a.ko.Spec.VPC == nil {
 		return
 	}
-	bVPCs := b.ko.Status.AssociatedVPCs
+	bVPCs := b.ko.Spec.VPCs
 	if len(bVPCs) != 1 {
 		delta.Add("Spec.VPC", a.ko.Spec.VPC, bVPCs)
 		return
@@ -339,21 +334,19 @@ func vpcListToSet(vpcs []*svcapitypes.VPC) map[string]string {
 
 // shouldRunVPCPreCleanup reports whether the delete path must disassociate
 // extra VPCs before deleting the hosted zone. Route53 rejects DeleteHostedZone
-// when more than one VPC is associated. The guard uses Status.AssociatedVPCs
-// (authoritative AWS state) rather than Spec.VPCs so that a failed prior sync
-// that left more VPCs associated than the spec reflects is still cleaned up.
-// It applies on both the spec.vpcs path and the legacy spec.vpc path.
+// when more than one VPC is associated.
+// Spec.VPCs is populated by sdkFind with the authoritative AWS state before
+// delete, so it correctly reflects all currently-associated VPCs.
 func shouldRunVPCPreCleanup(r *resource) bool {
-	return len(r.ko.Status.AssociatedVPCs) > 1 &&
-		(len(r.ko.Spec.VPCs) > 0 || r.ko.Spec.VPC != nil)
+	return len(r.ko.Spec.VPCs) > 1
 }
 
 // syncVPCAssociations reconciles VPC associations for a private hosted zone.
 // When spec.vpcs is set (len > 0), the full desired set is Spec.VPCs.
 // Otherwise (legacy path), the desired set is {Spec.VPC} if non-nil.
-// The current set is read from latest.ko.Status.AssociatedVPCs, which is
-// populated by sdkFind (read path) and seeded from the create response
-// (create path). LastVPCAssociation errors are surfaced as terminal conditions.
+// The current set is read from latest.ko.Spec.VPCs, which is populated by
+// sdkFind from resp.VPCs on every reconcile.
+// LastVPCAssociation errors are surfaced as terminal conditions.
 func (rm *resourceManager) syncVPCAssociations(
 	ctx context.Context,
 	client vpcAssociationClient,
@@ -384,11 +377,10 @@ func (rm *resourceManager) syncVPCAssociations(
 		desiredSet[*desired.ko.Spec.VPC.VPCID] = desired.ko.Spec.VPC
 	}
 
-	// Build current set from Status.AssociatedVPCs, which is populated by
-	// sdkFind (read path) and seeded from the create response (create path).
-	// This avoids an extra GetHostedZone call on every reconcile.
+	// Build current set from Spec.VPCs on latest, which sdkFind populates
+	// from resp.VPCs (the authoritative AWS state).
 	current := make(map[string]svcsdktypes.VPCRegion)
-	for _, v := range latest.ko.Status.AssociatedVPCs {
+	for _, v := range latest.ko.Spec.VPCs {
 		if v.VPCID != nil && v.VPCRegion != nil {
 			current[*v.VPCID] = svcsdktypes.VPCRegion(*v.VPCRegion)
 		}

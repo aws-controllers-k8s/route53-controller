@@ -97,11 +97,6 @@ type HostedZoneStatus struct {
 	// resource
 	// +kubebuilder:validation:Optional
 	Conditions []*ackv1alpha1.Condition `json:"conditions"`
-	// AssociatedVPCs is the list of VPCs currently associated with this
-	// hosted zone, as reported by AWS. This field is managed by the
-	// controller and must not be edited by users.
-	// +kubebuilder:validation:Optional
-	AssociatedVPCs []*VPC `json:"associatedVPCs,omitempty"`
 	// The value that you specified for CallerReference when you created the hosted
 	// zone.
 	// +kubebuilder:validation:Optional
