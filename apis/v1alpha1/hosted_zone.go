@@ -72,6 +72,16 @@ type HostedZoneSpec struct {
 	// (https://docs.aws.amazon.com/Route53/latest/APIReference/API_AssociateVPCWithHostedZone.html)
 	// after you create a hosted zone.
 	VPC *VPC `json:"vpc,omitempty"`
+	// VPCs is the list of Amazon VPCs to associate with this private hosted
+	// zone. Use this field to manage all VPC associations in one place. It
+	// is mutually exclusive with spec.vpc — set one or the other, not both.
+	// The controller will reject requests that set both fields with a
+	// terminal error condition.
+	//
+	// The first VPC in the list (spec.vpcs[0]) is used as the initial VPC
+	// when creating the hosted zone. Additional VPCs are associated after
+	// creation.
+	VPCs []*VPC `json:"vpcs,omitempty"`
 }
 
 // HostedZoneStatus defines the observed state of HostedZone

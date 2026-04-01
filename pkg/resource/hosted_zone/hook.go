@@ -1,3 +1,16 @@
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"). You may
+// not use this file except in compliance with the License. A copy of the
+// License is located at
+//
+//     http://aws.amazon.com/apache2.0/
+//
+// or in the "license" file accompanying this file. This file is distributed
+// on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+// express or implied. See the License for the specific language governing
+// permissions and limitations under the License.
+
 package hosted_zone
 
 import (
@@ -16,6 +29,13 @@ import (
 	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
 )
 
+// vpcAssociationClient is the subset of the Route53 API used by syncVPCAssociations.
+// *svcsdk.Client satisfies this interface; it is defined separately to allow unit testing.
+type vpcAssociationClient interface {
+	AssociateVPCWithHostedZone(ctx context.Context, input *svcsdk.AssociateVPCWithHostedZoneInput, opts ...func(*svcsdk.Options)) (*svcsdk.AssociateVPCWithHostedZoneOutput, error)
+	DisassociateVPCFromHostedZone(ctx context.Context, input *svcsdk.DisassociateVPCFromHostedZoneInput, opts ...func(*svcsdk.Options)) (*svcsdk.DisassociateVPCFromHostedZoneOutput, error)
+}
+
 // getCallerReference will generate a CallerReference for a given hosted zone
 // using the name of the zone and the current timestamp, so that it produces a
 // unique value
@@ -33,6 +53,10 @@ func (rm *resourceManager) customUpdateHostedZone(
 	exit := rlog.Trace("rm.customUpdateHostedZone")
 	defer exit(err)
 
+	if err := validateVPCFields(desired.ko.Spec); err != nil {
+		return nil, err
+	}
+
 	// Default `updated` to `desired` because it is likely
 	// EC2 `modify` APIs do NOT return output, only errors.
 	// If the `modify` calls (i.e. `sync`) do NOT return
@@ -42,6 +66,12 @@ func (rm *resourceManager) customUpdateHostedZone(
 
 	if delta.DifferentAt("Spec.Tags") {
 		if err := rm.syncTags(ctx, desired, latest); err != nil {
+			return nil, err
+		}
+	}
+
+	if delta.DifferentAt("Spec.VPCs") || delta.DifferentAt("Spec.VPC") {
+		if err := rm.syncVPCAssociations(ctx, rm.sdkapi, desired, latest); err != nil {
 			return nil, err
 		}
 	}
@@ -176,5 +206,244 @@ func (rm *resourceManager) setResourceAdditionalFields(
 	} else {
 		ko.Spec.Tags = []*svcapitypes.Tag{}
 	}
+	return nil
+}
+
+// validateVPCFields checks for invalid VPC field combinations and returns a
+// terminal error on conflict. Rules:
+//   - spec.vpc and spec.vpcs are mutually exclusive.
+//   - If hostedZoneConfig.privateZone is explicitly false, VPC fields are rejected.
+//   - VPC presence alone (without privateZone: true) is accepted as implicit private
+//     zone intent; Route 53 infers zone type from the VPC parameter.
+//   - Each entry in spec.vpcs must have non-nil vpcID and vpcRegion.
+//
+// Only call on create and update paths.
+func validateVPCFields(spec svcapitypes.HostedZoneSpec) error {
+	if spec.VPC != nil && len(spec.VPCs) > 0 {
+		return ackerr.NewTerminalError(fmt.Errorf(
+			"spec.vpc and spec.vpcs are mutually exclusive; use spec.vpcs to manage all VPC associations",
+		))
+	}
+	explicitlyPublic := spec.HostedZoneConfig != nil &&
+		spec.HostedZoneConfig.PrivateZone != nil &&
+		!*spec.HostedZoneConfig.PrivateZone
+	if explicitlyPublic && (spec.VPC != nil || len(spec.VPCs) > 0) {
+		return ackerr.NewTerminalError(fmt.Errorf(
+			"spec.vpc and spec.vpcs are only valid for private hosted zones; remove hostedZoneConfig.privateZone: false, or remove VPC fields",
+		))
+	}
+	for i, v := range spec.VPCs {
+		if v == nil {
+			return ackerr.NewTerminalError(fmt.Errorf("spec.vpcs[%d] must not be nil", i))
+		}
+		if v.VPCID == nil || *v.VPCID == "" {
+			return ackerr.NewTerminalError(fmt.Errorf("spec.vpcs[%d].vpcID is required", i))
+		}
+		if v.VPCRegion == nil || *v.VPCRegion == "" {
+			return ackerr.NewTerminalError(fmt.Errorf("spec.vpcs[%d].vpcRegion is required", i))
+		}
+	}
+	return nil
+}
+
+// compareVPCs is a custom comparison function that diffs desired.Spec.VPCs
+// against latest.Spec.VPCs (the AWS actual state, populated by sdkFind).
+// Order is not significant. Uses "Spec.VPCs" as the delta key — this must
+// match what customUpdateHostedZone checks.
+func compareVPCs(
+	delta *ackcompare.Delta,
+	a *resource,
+	b *resource,
+) {
+	// On the legacy spec.vpc path, Spec.VPCs is nil on desired — skip.
+	// The Spec.VPC field is handled by compareVPC below.
+	aVPCs := a.ko.Spec.VPCs
+	if aVPCs == nil {
+		return
+	}
+	bVPCs := b.ko.Spec.VPCs
+	if len(aVPCs) != len(bVPCs) {
+		delta.Add("Spec.VPCs", aVPCs, bVPCs)
+		return
+	}
+	if len(aVPCs) == 0 {
+		return
+	}
+	for _, v := range aVPCs {
+		if v == nil || v.VPCID == nil || v.VPCRegion == nil {
+			delta.Add("Spec.VPCs", aVPCs, bVPCs)
+			return
+		}
+	}
+	setA := vpcListToSet(aVPCs)
+	for _, v := range bVPCs {
+		if v == nil || v.VPCID == nil || v.VPCRegion == nil {
+			delta.Add("Spec.VPCs", aVPCs, bVPCs)
+			return
+		}
+		if region, ok := setA[*v.VPCID]; !ok || region != *v.VPCRegion {
+			delta.Add("Spec.VPCs", aVPCs, bVPCs)
+			return
+		}
+	}
+}
+
+// compareVPC is a custom comparison function for the legacy spec.vpc path.
+// It compares desired.Spec.VPC against the VPCs actually associated in AWS
+// (latest.Spec.VPCs, populated by sdkFind). This is necessary because sdkFind
+// starts with ko = r.ko.DeepCopy(), so latest.Spec.VPC is always a copy of
+// desired.Spec.VPC — the generated delta code for Spec.VPC never fires.
+// Uses "Spec.VPC" as the delta key — must match what customUpdateHostedZone checks.
+func compareVPC(
+	delta *ackcompare.Delta,
+	a *resource,
+	b *resource,
+) {
+	if a.ko.Spec.VPC == nil {
+		return
+	}
+	bVPCs := b.ko.Spec.VPCs
+	if len(bVPCs) != 1 {
+		delta.Add("Spec.VPC", a.ko.Spec.VPC, bVPCs)
+		return
+	}
+	v := bVPCs[0]
+	if v.VPCID == nil || v.VPCRegion == nil {
+		delta.Add("Spec.VPC", a.ko.Spec.VPC, bVPCs)
+		return
+	}
+	if a.ko.Spec.VPC.VPCID == nil || a.ko.Spec.VPC.VPCRegion == nil {
+		delta.Add("Spec.VPC", a.ko.Spec.VPC, bVPCs)
+		return
+	}
+	if *v.VPCID != *a.ko.Spec.VPC.VPCID || *v.VPCRegion != *a.ko.Spec.VPC.VPCRegion {
+		delta.Add("Spec.VPC", a.ko.Spec.VPC, bVPCs)
+	}
+}
+
+// vpcListToSet converts a slice of VPCs to a map of VPCID → VPCRegion.
+func vpcListToSet(vpcs []*svcapitypes.VPC) map[string]string {
+	set := make(map[string]string, len(vpcs))
+	for _, v := range vpcs {
+		if v.VPCID != nil && v.VPCRegion != nil {
+			set[*v.VPCID] = *v.VPCRegion
+		}
+	}
+	return set
+}
+
+// shouldRunVPCPreCleanup reports whether the delete path must disassociate
+// extra VPCs before deleting the hosted zone. Route53 rejects DeleteHostedZone
+// when more than one VPC is associated.
+// Spec.VPCs is populated by sdkFind with the authoritative AWS state before
+// delete, so it correctly reflects all currently-associated VPCs.
+func shouldRunVPCPreCleanup(r *resource) bool {
+	return len(r.ko.Spec.VPCs) > 1
+}
+
+// syncVPCAssociations reconciles VPC associations for a private hosted zone.
+// When spec.vpcs is set (len > 0), the full desired set is Spec.VPCs.
+// Otherwise (legacy path), the desired set is {Spec.VPC} if non-nil.
+// The current set is read from latest.ko.Spec.VPCs, which is populated by
+// sdkFind from resp.VPCs on every reconcile.
+// LastVPCAssociation errors are surfaced as terminal conditions.
+func (rm *resourceManager) syncVPCAssociations(
+	ctx context.Context,
+	client vpcAssociationClient,
+	desired *resource,
+	latest *resource,
+) (err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.syncVPCAssociations")
+	defer func() {
+		exit(err)
+	}()
+
+	hostedZoneID := latest.ko.Status.ID
+
+	// Build full desired set from whichever field is active.
+	// spec.vpcs path: len(Spec.VPCs) > 0 — use the full VPCs list.
+	// spec.vpc path (legacy): use Spec.VPC only.
+	desiredSet := make(map[string]*svcapitypes.VPC)
+	if len(desired.ko.Spec.VPCs) > 0 {
+		for _, v := range desired.ko.Spec.VPCs {
+			if v.VPCID == nil || v.VPCRegion == nil {
+				rlog.Debug("skipping Spec.VPCs entry with nil VPCID or VPCRegion")
+				continue
+			}
+			desiredSet[*v.VPCID] = v
+		}
+	} else if desired.ko.Spec.VPC != nil && desired.ko.Spec.VPC.VPCID != nil {
+		desiredSet[*desired.ko.Spec.VPC.VPCID] = desired.ko.Spec.VPC
+	}
+
+	// Build current set from Spec.VPCs on latest, which sdkFind populates
+	// from resp.VPCs (the authoritative AWS state).
+	current := make(map[string]svcsdktypes.VPCRegion)
+	for _, v := range latest.ko.Spec.VPCs {
+		if v.VPCID != nil && v.VPCRegion != nil {
+			current[*v.VPCID] = svcsdktypes.VPCRegion(*v.VPCRegion)
+		}
+	}
+
+	// Associate VPCs that are desired but not yet associated.
+	for id, v := range desiredSet {
+		if _, ok := current[id]; ok {
+			continue // already associated
+		}
+		rlog.Debug("associating VPC with hosted zone", "vpcID", id)
+		region := svcsdktypes.VPCRegion(*v.VPCRegion)
+		_, err = client.AssociateVPCWithHostedZone(ctx, &svcsdk.AssociateVPCWithHostedZoneInput{
+			HostedZoneId: hostedZoneID,
+			VPC: &svcsdktypes.VPC{
+				VPCId:     v.VPCID,
+				VPCRegion: region,
+			},
+		})
+		if rm.metrics != nil {
+			rm.metrics.RecordAPICall("UPDATE", "AssociateVPCWithHostedZone", err)
+		}
+		if err != nil {
+			var conflict *svcsdktypes.ConflictingDomainExists
+			if errors.As(err, &conflict) {
+				continue // already associated — idempotent
+			}
+			return err
+		}
+	}
+
+	// Disassociate VPCs that are associated but no longer desired.
+	for id, region := range current {
+		if _, ok := desiredSet[id]; ok {
+			continue
+		}
+		rlog.Debug("disassociating VPC from hosted zone", "vpcID", id)
+		vpcID := id
+		_, err = client.DisassociateVPCFromHostedZone(ctx, &svcsdk.DisassociateVPCFromHostedZoneInput{
+			HostedZoneId: hostedZoneID,
+			VPC: &svcsdktypes.VPC{
+				VPCId:     &vpcID,
+				VPCRegion: region,
+			},
+		})
+		if rm.metrics != nil {
+			rm.metrics.RecordAPICall("UPDATE", "DisassociateVPCFromHostedZone", err)
+		}
+		if err != nil {
+			var notFound *svcsdktypes.VPCAssociationNotFound
+			if errors.As(err, &notFound) {
+				continue // already disassociated — idempotent
+			}
+			var lastVPC *svcsdktypes.LastVPCAssociation
+			if errors.As(err, &lastVPC) {
+				// Route53 rejects disassociation of the last VPC. This is a
+				// permanent user error — the desired state is invalid. Surface
+				// it as a terminal condition so the operator is notified.
+				return ackerr.NewTerminalError(err)
+			}
+			return err
+		}
+	}
+
 	return nil
 }

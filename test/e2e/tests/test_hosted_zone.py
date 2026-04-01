@@ -83,6 +83,29 @@ def private_hosted_zone():
 
     delete_route53_resource(ref)
 
+@pytest.fixture
+def private_hosted_zone_multiple_vpcs():
+    zone_name = random_suffix_name("private-hosted-zone", 32)
+
+    bootstrap = get_bootstrap_resources()
+    replacements = REPLACEMENT_VALUES.copy()
+    replacements["ZONE_NAME"] = zone_name
+    replacements["ZONE_DOMAIN"] = f"{zone_name}.ack.example.com."
+    replacements["VPC_ID"] = bootstrap.HostedZoneVPC.vpc_id
+    replacements["VPC2_ID"] = bootstrap.VPC2.vpc_id
+    replacements["VPC3_ID"] = bootstrap.VPC3.vpc_id
+
+    ref, cr = create_route53_resource(
+        "hostedzones",
+        zone_name,
+        "hosted_zone_private_multiple_vpcs",
+        replacements,
+    )
+
+    yield ref, cr
+
+    delete_route53_resource(ref)
+
 @service_marker
 @pytest.mark.canary
 class TestHostedZone:
@@ -229,3 +252,126 @@ class TestHostedZone:
 
         # Check hosted_zone no longer exists in AWS
         route53_validator.assert_hosted_zone(resource_id, exists=False)
+
+    def test_update_spec_vpc(self, route53_client, private_hosted_zone):
+        """Updating spec.vpc should disassociate the old VPC and associate the new one."""
+        ref, cr = private_hosted_zone
+
+        zone_id = cr["status"]["id"]
+        bootstrap = get_bootstrap_resources()
+
+        assert zone_id
+
+        # Wait for initial create to complete
+        time.sleep(CREATE_WAIT_AFTER_SECONDS)
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
+        route53_validator = Route53Validator(route53_client)
+        route53_validator.assert_hosted_zone(zone_id)
+
+        # Confirm the initial VPC is associated
+        route53_validator.assert_vpc_association(zone_id, bootstrap.HostedZoneVPC.vpc_id, exists=True)
+
+        # Patch spec.vpc to VPC2
+        updates = {
+            "spec": {
+                "vpc": {
+                    "vpcID": bootstrap.VPC2.vpc_id,
+                    "vpcRegion": bootstrap.VPC2.region,
+                }
+            }
+        }
+        k8s.patch_custom_resource(ref, updates)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
+        # VPC2 should now be associated; HostedZoneVPC should be disassociated
+        route53_validator.assert_vpc_association(zone_id, bootstrap.VPC2.vpc_id, exists=True)
+        route53_validator.assert_vpc_association(zone_id, bootstrap.HostedZoneVPC.vpc_id, exists=False)
+
+    def test_delete_with_multiple_vpcs(self, route53_client, private_hosted_zone_multiple_vpcs):
+        """Deleting a hosted zone with multiple VPCs should succeed (pre-delete disassociation)."""
+        ref, cr = private_hosted_zone_multiple_vpcs
+
+        zone_id = cr["status"]["id"]
+        bootstrap = get_bootstrap_resources()
+
+        assert zone_id
+
+        # VPC associations are synced during the create reconciliation cycle.
+        # Wait for the resource to be fully synced before checking associations.
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
+        # Verify all VPCs are associated before delete
+        route53_validator = Route53Validator(route53_client)
+        route53_validator.assert_vpc_association(zone_id, bootstrap.VPC2.vpc_id, exists=True)
+        route53_validator.assert_vpc_association(zone_id, bootstrap.VPC3.vpc_id, exists=True)
+
+        # Delete while multiple VPCs are still associated — should not fail
+        _, deleted = k8s.delete_custom_resource(ref)
+        assert deleted is True
+
+        time.sleep(DELETE_WAIT_AFTER_SECONDS)
+
+        route53_validator.assert_hosted_zone(zone_id, exists=False)
+
+    def test_crud_vpcs(self, route53_client, private_hosted_zone_multiple_vpcs):
+        """Test CRUD operations for a private hosted zone with multiple VPCs."""
+        ref, cr = private_hosted_zone_multiple_vpcs
+
+        zone_id = cr["status"]["id"]
+        bootstrap = get_bootstrap_resources()
+
+        assert zone_id
+
+        # VPC associations are synced during the create reconciliation cycle.
+        # Wait for the resource to be fully synced before checking associations.
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
+        # Check hosted zone exists and all VPCs are associated
+        route53_validator = Route53Validator(route53_client)
+        route53_validator.assert_hosted_zone(zone_id)
+        route53_validator.assert_vpc_association(zone_id, bootstrap.VPC2.vpc_id, exists=True)
+        route53_validator.assert_vpc_association(zone_id, bootstrap.VPC3.vpc_id, exists=True)
+
+        # Remove VPC3, keep VPC2 (and primary HostedZoneVPC)
+        updates = {
+            "spec": {"vpcs": [
+                {"vpcID": bootstrap.HostedZoneVPC.vpc_id, "vpcRegion": bootstrap.HostedZoneVPC.region},
+                {"vpcID": bootstrap.VPC2.vpc_id, "vpcRegion": bootstrap.VPC2.region},
+            ]},
+        }
+        k8s.patch_custom_resource(ref, updates)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+
+        # VPC2 should remain, VPC3 should be disassociated
+        route53_validator.assert_vpc_association(zone_id, bootstrap.VPC2.vpc_id, exists=True)
+        route53_validator.assert_vpc_association(zone_id, bootstrap.VPC3.vpc_id, exists=False)
+
+        # Remove VPC2, keep only the primary
+        updates = {
+            "spec": {"vpcs": [
+                {"vpcID": bootstrap.HostedZoneVPC.vpc_id, "vpcRegion": bootstrap.HostedZoneVPC.region},
+            ]},
+        }
+        k8s.patch_custom_resource(ref, updates)
+        time.sleep(MODIFY_WAIT_AFTER_SECONDS)
+
+        assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=5)
+
+        # Both VPC2 and VPC3 should now be disassociated
+        route53_validator.assert_vpc_association(zone_id, bootstrap.VPC2.vpc_id, exists=False)
+        route53_validator.assert_vpc_association(zone_id, bootstrap.VPC3.vpc_id, exists=False)
+
+        # Delete the zone
+        _, deleted = k8s.delete_custom_resource(ref)
+        assert deleted is True
+
+        time.sleep(DELETE_WAIT_AFTER_SECONDS)
+
+        route53_validator.assert_hosted_zone(zone_id, exists=False)

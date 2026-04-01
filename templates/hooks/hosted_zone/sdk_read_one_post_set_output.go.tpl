@@ -11,3 +11,17 @@
 	} else {
 		ko.Status.DelegationSet = nil
 	}
+
+	// Populate Spec.VPCs from the authoritative AWS VPC list so that
+	// compareVPCs / syncVPCAssociations can compare desired vs actual.
+	ko.Spec.VPCs = nil
+	for _, v := range resp.VPCs {
+		if v.VPCId == nil {
+			continue
+		}
+		region := string(v.VPCRegion)
+		ko.Spec.VPCs = append(ko.Spec.VPCs, &svcapitypes.VPC{
+			VPCID:     v.VPCId,
+			VPCRegion: &region,
+		})
+	}

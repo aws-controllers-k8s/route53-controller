@@ -1,0 +1,19 @@
+resources:
+  HostedZone:
+    fields:
+      VPCs:
+        override: |
+          VPCs is the list of Amazon VPCs to associate with this private hosted
+          zone. Use this field to manage all VPC associations in one place. It
+          is mutually exclusive with spec.vpc — set one or the other, not both.
+          The controller will reject requests that set both fields with a
+          terminal error condition.
+
+          The first VPC in the list (spec.vpcs[0]) is used as the initial VPC
+          when creating the hosted zone. Additional VPCs are associated after
+          creation.
+      AssociatedVPCs:
+        override: |
+          AssociatedVPCs is the list of VPCs currently associated with this
+          hosted zone, as reported by AWS. This field is managed by the
+          controller and must not be edited by users.

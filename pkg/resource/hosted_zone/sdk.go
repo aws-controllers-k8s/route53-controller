@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	ackv1alpha1 "github.com/aws-controllers-k8s/runtime/apis/core/v1alpha1"
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
@@ -148,6 +149,19 @@ func (rm *resourceManager) sdkFind(
 		ko.Status.DelegationSet = nil
 	}
 
+	// Populate Spec.VPCs from the authoritative AWS VPC list so that
+	// compareVPCs / syncVPCAssociations can compare desired vs actual.
+	ko.Spec.VPCs = nil
+	for _, v := range resp.VPCs {
+		if v.VPCId == nil {
+			continue
+		}
+		region := string(v.VPCRegion)
+		ko.Spec.VPCs = append(ko.Spec.VPCs, &svcapitypes.VPC{
+			VPCID:     v.VPCId,
+			VPCRegion: &region,
+		})
+	}
 	return &resource{ko}, nil
 }
 
@@ -191,11 +205,24 @@ func (rm *resourceManager) sdkCreate(
 	if err != nil {
 		return nil, err
 	}
+	// Validate VPC field configuration before attempting create.
+	if err := validateVPCFields(desired.ko.Spec); err != nil {
+		return nil, err
+	}
+
+	// If spec.vpcs is set (and spec.vpc is nil), inject vpcs[0] as the creation
+	// VPC. The generated newCreateRequestPayload leaves input.VPC nil when
+	// spec.vpc is nil. The user controls which VPC is primary by placing it first.
+	if len(desired.ko.Spec.VPCs) > 0 {
+		input.VPC = &svcsdktypes.VPC{
+			VPCId:     desired.ko.Spec.VPCs[0].VPCID,
+			VPCRegion: svcsdktypes.VPCRegion(*desired.ko.Spec.VPCs[0].VPCRegion),
+		}
+	}
+
 	// You must use a unique CallerReference string every time you submit a
 	// CreateHostedZone request. CallerReference can be any unique string, for
 	// example, a date/timestamp.
-	// TODO: Name is not sufficient, since a failed request cannot be retried.
-	// We might need to import the `time` package into `sdk.go`
 	input.CallerReference = aws.String(getCallerReference(desired.ko))
 
 	var resp *svcsdk.CreateHostedZoneOutput
@@ -274,8 +301,18 @@ func (rm *resourceManager) sdkCreate(
 		if err := rm.syncTags(ctx, desired, latest); err != nil {
 			return nil, err
 		}
-	}
 
+		// If there are additional VPCs beyond the first (already associated by
+		// create), requeue so the update path handles the remaining associations.
+		// This ensures association errors are attributed to the sync phase, not
+		// the create phase, and that status.id is always written to k8s on create.
+		if len(desired.ko.Spec.VPCs) > 1 {
+			ackcondition.SetSynced(&resource{ko}, corev1.ConditionFalse,
+				aws.String("requeuing to associate additional VPCs"), nil)
+			return &resource{ko}, ackrequeue.NeededAfter(
+				fmt.Errorf("reconciling additional VPC associations"), 1*time.Second)
+		}
+	}
 	return &resource{ko}, nil
 }
 
@@ -338,6 +375,23 @@ func (rm *resourceManager) sdkDelete(
 	defer func() {
 		exit(err)
 	}()
+	// Disassociate all but one VPC before deletion.
+	// Route53 rejects DeleteHostedZone if >1 VPC is associated.
+	// Spec.VPCs is populated by sdkFind with the authoritative AWS state.
+	//
+	// Keep Spec.VPCs[0] as the final VPC. Null Spec.VPC to avoid the
+	// mutual-exclusivity guard in syncVPCAssociations.
+	if shouldRunVPCPreCleanup(r) {
+		desired := rm.concreteResource(r.DeepCopy())
+		if len(r.ko.Spec.VPCs) > 0 {
+			desired.ko.Spec.VPC = nil
+			desired.ko.Spec.VPCs = []*svcapitypes.VPC{r.ko.Spec.VPCs[0]}
+		}
+		if err = rm.syncVPCAssociations(ctx, rm.sdkapi, desired, r); err != nil {
+			return nil, err
+		}
+	}
+
 	input, err := rm.newDeleteRequestPayload(r)
 	if err != nil {
 		return nil, err

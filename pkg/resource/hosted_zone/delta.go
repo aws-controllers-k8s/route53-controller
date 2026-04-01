@@ -41,6 +41,8 @@ func newResourceDelta(
 		return delta
 	}
 	compareTags(delta, a, b)
+	compareVPCs(delta, a, b)
+	compareVPC(delta, a, b)
 
 	if ackcompare.HasNilDifference(a.ko.Spec.DelegationSetID, b.ko.Spec.DelegationSetID) {
 		delta.Add("Spec.DelegationSetID", a.ko.Spec.DelegationSetID, b.ko.Spec.DelegationSetID)
