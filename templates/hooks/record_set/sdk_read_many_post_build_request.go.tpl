@@ -5,8 +5,7 @@
 		return nil, err
 	}
 
-	// Return the combined value of the user specified subdomain and the hosted zone domain.
-	dnsName := rm.getDNSName(r, domain)
+	dnsName := rm.getDNSName(aws.ToString(r.ko.Spec.Name), domain)
 
 	// Setting the starting point to the following values reduces the number of irrelevant
 	// records that are returned.

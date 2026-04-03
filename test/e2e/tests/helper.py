@@ -72,10 +72,14 @@ class Route53Validator:
         found = False
         ip_address = cr["spec"]["resourceRecords"][0]["value"] if "resourceRecords" in cr["spec"].keys() else None
 
-        dnsName = ""
+        # handle fqdn recordsets
+        dnsName = domain
         if "name" in cr["spec"].keys():
-            dnsName += cr["spec"]["name"] + "."
-        dnsName += domain
+            name = cr["spec"]["name"]
+            if name.endswith("."):
+                dnsName = name
+            else:
+                dnsName = name + "." + domain
 
         try:
             res = self.route53_client.list_resource_record_sets(
