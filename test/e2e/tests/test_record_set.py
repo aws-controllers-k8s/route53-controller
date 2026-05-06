@@ -20,8 +20,9 @@ import socket
 import struct
 import time
 
+from acktest.k8s import resource as k8s
 from acktest.resources import random_suffix_name
-from e2e import service_marker, get_route53_resource, create_route53_resource, delete_route53_resource, patch_route53_resource
+from e2e import service_marker, CRD_GROUP, CRD_VERSION, get_route53_resource, create_route53_resource, delete_route53_resource, patch_route53_resource, load_eks_resource
 from e2e.bootstrap_resources import get_bootstrap_resources
 from e2e.replacement_values import REPLACEMENT_VALUES
 from e2e.tests.helper import Route53Validator
@@ -173,3 +174,91 @@ class TestRecordSet:
 
         # Ensure that the status eventually switches from PENDING to INSYNC
         assert verify_status_insync(ref) is True
+
+
+    def test_adopted_record_set_reaches_synced_state(self, route53_client, private_hosted_zone):
+        """Test that adopting an existing RecordSet reaches ACK.ResourceSynced: True.
+
+        This validates the fix for https://github.com/aws-controllers-k8s/community/issues/2861
+        where adopted RecordSets would get stuck with ACK.ResourceSynced: False because
+        no ChangeInfo.Id is set during adoption (no create/update is performed).
+        """
+        zone_id, domain = private_hosted_zone
+        parsed_zone_id = zone_id.split("/")[-1]
+        ip_address = socket.inet_ntoa(struct.pack('>I', random.randint(1, 0xffffffff)))
+        record_dns_name = "adopt-test"
+        full_dns_name = f"{record_dns_name}.{domain}"
+
+        # Create the record set directly in AWS via boto3 (simulating a pre-existing resource)
+        route53_client.change_resource_record_sets(
+            HostedZoneId=parsed_zone_id,
+            ChangeBatch={
+                "Changes": [
+                    {
+                        "Action": "CREATE",
+                        "ResourceRecordSet": {
+                            "Name": full_dns_name,
+                            "Type": "A",
+                            "TTL": 300,
+                            "ResourceRecords": [{"Value": ip_address}],
+                        },
+                    }
+                ]
+            },
+        )
+
+        ref = None
+        try:
+            # Now adopt the record set via ACK
+            adopt_record_name = random_suffix_name("adopt-record", 32)
+            replacements = REPLACEMENT_VALUES.copy()
+            replacements["ADOPT_RECORD_NAME"] = adopt_record_name
+            replacements["ADOPT_RECORD_DNS_NAME"] = record_dns_name
+            replacements["HOSTED_ZONE_ID"] = parsed_zone_id
+            replacements["IP_ADDR"] = ip_address
+
+            resource_data = load_eks_resource(
+                "record_set_adopt",
+                additional_replacements=replacements,
+            )
+
+            ref = k8s.CustomResourceReference(
+                CRD_GROUP, CRD_VERSION, "recordsets",
+                adopt_record_name, namespace="default",
+            )
+            k8s.create_custom_resource(ref, resource_data)
+            cr = k8s.wait_resource_consumed_by_controller(ref)
+            assert cr is not None
+
+            # The adopted resource should reach a synced state without a change ID
+            assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10)
+
+            # Verify no change ID was set (adoption doesn't trigger create/update)
+            record = get_route53_resource(ref)
+            assert record["status"].get("id") is None
+        finally:
+            # Clean up the K8s resource if it was created
+            if ref is not None:
+                delete_route53_resource(ref)
+
+            # Ensure the AWS record is removed even if the K8s delete fails
+            try:
+                route53_client.change_resource_record_sets(
+                    HostedZoneId=parsed_zone_id,
+                    ChangeBatch={
+                        "Changes": [
+                            {
+                                "Action": "DELETE",
+                                "ResourceRecordSet": {
+                                    "Name": full_dns_name,
+                                    "Type": "A",
+                                    "TTL": 300,
+                                    "ResourceRecords": [{"Value": ip_address}],
+                                },
+                            }
+                        ]
+                    },
+                )
+            except route53_client.exceptions.InvalidChangeBatch:
+                # Record already deleted by the controller
+                pass
