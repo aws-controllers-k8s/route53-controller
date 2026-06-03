@@ -34,6 +34,7 @@ type HostedZoneSpec struct {
 	// for a subdomain, make sure that the parent hosted zone doesn't use one or
 	// more of the same name servers. If you have overlapping nameservers, the operation
 	// will cause a ConflictingDomainsExist error.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable once set"
 	DelegationSetID *string `json:"delegationSetID,omitempty"`
 	// (Optional) A complex type that contains the following optional values:
 	//
@@ -53,6 +54,7 @@ type HostedZoneSpec struct {
 	// with your DNS registrar. If your domain name is registered with a registrar
 	// other than Route 53, change the name servers for your domain to the set of
 	// NameServers that CreateHostedZone returns in DelegationSet.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable once set"
 	// +kubebuilder:validation:Required
 	Name *string `json:"name"`
 	// A complex type that contains a list of the tags that you want to add to the

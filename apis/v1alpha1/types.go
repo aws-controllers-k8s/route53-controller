@@ -187,8 +187,9 @@ type HealthCheck_SDK struct {
 // If you don't want to specify a comment, omit both the HostedZoneConfig and
 // Comment elements.
 type HostedZoneConfig struct {
-	Comment     *string `json:"comment,omitempty"`
-	PrivateZone *bool   `json:"privateZone,omitempty"`
+	Comment *string `json:"comment,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable once set"
+	PrivateZone *bool `json:"privateZone,omitempty"`
 }
 
 // In the response to a ListHostedZonesByVPC request, the HostedZoneSummaries
