@@ -163,6 +163,12 @@ resources:
       - InvalidInput
       - InvalidVPCId
     fields:
+      Name:
+        is_immutable: true
+      DelegationSetID:
+        is_immutable: true
+      HostedZoneConfig.PrivateZone:
+        is_immutable: true
       VPCs:
         custom_field:
           list_of: VPC
