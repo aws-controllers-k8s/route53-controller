@@ -176,6 +176,81 @@ class TestRecordSet:
         assert verify_status_insync(ref) is True
 
 
+    def test_fqdn_record_created_when_sibling_sorts_after(self, route53_client, private_hosted_zone):
+        zone_id, domain = private_hosted_zone
+        parsed_zone_id = zone_id.split("/")[-1]
+
+        sibling_dns_name = random_suffix_name("zzz-sibling", 32) + "." + domain
+        sibling_ip = socket.inet_ntoa(struct.pack('>I', random.randint(1, 0xffffffff)))
+        new_ip = socket.inet_ntoa(struct.pack('>I', random.randint(1, 0xffffffff)))
+
+        route53_client.change_resource_record_sets(
+            HostedZoneId=parsed_zone_id,
+            ChangeBatch={
+                "Changes": [
+                    {
+                        "Action": "CREATE",
+                        "ResourceRecordSet": {
+                            "Name": sibling_dns_name,
+                            "Type": "A",
+                            "TTL": 300,
+                            "ResourceRecords": [{"Value": sibling_ip}],
+                        },
+                    }
+                ]
+            },
+        )
+
+        ref = None
+        try:
+            k8s_name = random_suffix_name("aaa-fqdn", 32)
+            replacements = REPLACEMENT_VALUES.copy()
+            replacements["FQDN_K8S_NAME"] = k8s_name
+            replacements["FQDN_SPEC_NAME"] = k8s_name + "." + domain
+            replacements["HOSTED_ZONE_ID"] = parsed_zone_id
+            replacements["IP_ADDR"] = new_ip
+
+            resource_data = load_eks_resource(
+                "record_set_fqdn",
+                additional_replacements=replacements,
+            )
+
+            ref = k8s.CustomResourceReference(
+                CRD_GROUP, CRD_VERSION, "recordsets",
+                k8s_name, namespace="default",
+            )
+            k8s.create_custom_resource(ref, resource_data)
+            cr = k8s.wait_resource_consumed_by_controller(ref)
+            assert cr is not None
+
+            assert status_id_exists(ref) is True
+
+            route53_validator = Route53Validator(route53_client)
+            route53_validator.assert_record_set(get_route53_resource(ref), domain)
+        finally:
+            if ref is not None:
+                delete_route53_resource(ref)
+
+            try:
+                route53_client.change_resource_record_sets(
+                    HostedZoneId=parsed_zone_id,
+                    ChangeBatch={
+                        "Changes": [
+                            {
+                                "Action": "DELETE",
+                                "ResourceRecordSet": {
+                                    "Name": sibling_dns_name,
+                                    "Type": "A",
+                                    "TTL": 300,
+                                    "ResourceRecords": [{"Value": sibling_ip}],
+                                },
+                            }
+                        ]
+                    },
+                )
+            except route53_client.exceptions.InvalidChangeBatch:
+                pass
+
     def test_adopted_record_set_reaches_synced_state(self, route53_client, private_hosted_zone):
         """Test that adopting an existing RecordSet reaches ACK.ResourceSynced: True.
 

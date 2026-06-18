@@ -13,7 +13,12 @@
 			isFQDN := r.ko.Spec.Name != nil && strings.HasSuffix(*r.ko.Spec.Name, ".")
 			var subdomain string
 			if isFQDN {
-				subdomain = *r.ko.Spec.Name
+				// Spec.Name is already fully-qualified (trailing dot), and so is
+				// the record's returned Name. Compare the record's actual name
+				// against Spec.Name - do NOT substitute Spec.Name here, or every
+				// returned record would falsely compare equal to Spec.Name and the
+				// equality check below would never filter out non-matching records.
+				subdomain = decodeRecordName(*elem.Name)
 			} else {
 				subdomain = strings.TrimSuffix(*elem.Name, domain)
 				subdomain = decodeRecordName(subdomain)
