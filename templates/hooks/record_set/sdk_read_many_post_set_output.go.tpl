@@ -7,7 +7,7 @@
 	// created/updated by this controller), we skip the propagation check.
 	// The record was confirmed to exist via ListResourceRecordSets, so it is
 	// already present on the authoritative servers.
-	if ko.Status.ID != nil {
+	if ko.Status.ID != nil && *ko.Status.ID != "" {
 		err = rm.syncStatus(ctx, ko)
 		if err != nil {
 			return nil, err
