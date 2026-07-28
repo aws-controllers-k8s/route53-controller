@@ -338,3 +338,31 @@ func decodeRecordName(name string) string {
 	}
 	return name
 }
+
+// customPreCompare normalizes AliasTarget fields before the generated delta
+// comparison runs. AWS always returns AliasTarget.DNSName with a trailing dot
+// and AliasTarget.HostedZoneID with a "/hostedzone/" prefix; users typically
+// omit both. Without normalization, every reconcile produces a spurious delta
+// and triggers a perpetual update loop.
+func customPreCompare(
+	delta *ackcompare.Delta,
+	a *resource,
+	b *resource,
+) {
+	if a.ko.Spec.AliasTarget != nil && a.ko.Spec.AliasTarget.DNSName != nil {
+		normalized := strings.TrimSuffix(*a.ko.Spec.AliasTarget.DNSName, ".")
+		a.ko.Spec.AliasTarget.DNSName = &normalized
+	}
+	if b.ko.Spec.AliasTarget != nil && b.ko.Spec.AliasTarget.DNSName != nil {
+		normalized := strings.TrimSuffix(*b.ko.Spec.AliasTarget.DNSName, ".")
+		b.ko.Spec.AliasTarget.DNSName = &normalized
+	}
+	if a.ko.Spec.AliasTarget != nil && a.ko.Spec.AliasTarget.HostedZoneID != nil {
+		normalized := strings.TrimPrefix(*a.ko.Spec.AliasTarget.HostedZoneID, "/hostedzone/")
+		a.ko.Spec.AliasTarget.HostedZoneID = &normalized
+	}
+	if b.ko.Spec.AliasTarget != nil && b.ko.Spec.AliasTarget.HostedZoneID != nil {
+		normalized := strings.TrimPrefix(*b.ko.Spec.AliasTarget.HostedZoneID, "/hostedzone/")
+		b.ko.Spec.AliasTarget.HostedZoneID = &normalized
+	}
+}
