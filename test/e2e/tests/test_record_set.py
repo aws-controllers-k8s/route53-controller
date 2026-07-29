@@ -337,3 +337,102 @@ class TestRecordSet:
             except route53_client.exceptions.InvalidChangeBatch:
                 # Record already deleted by the controller
                 pass
+
+    def test_adopt_with_adoption_fields_no_id(self, route53_client, private_hosted_zone):
+        """Test the exact CX scenario: adopt a pre-existing record using adoption-fields
+        annotation with hostedZoneID + name + recordType but WITHOUT an id field.
+
+        On upstream (buggy): controller returns terminal error 'required field missing: id'
+        With fix: controller successfully adopts the record, Status.ID is nil, Synced=True.
+
+        This directly reproduces the customer scenario where pre-existing Route53 records
+        (not created by ACK) have no ChangeInfo ID and should be adoptable without one.
+        """
+        zone_id, domain = private_hosted_zone
+        parsed_zone_id = zone_id.split("/")[-1]
+        ip_address = socket.inet_ntoa(struct.pack('>I', random.randint(1, 0xffffffff)))
+        record_dns_name = "adopt-no-id-test"
+        full_dns_name = f"{record_dns_name}.{domain}"
+
+        # Step 1: Create a real AWS record via boto3 (simulating a pre-existing resource
+        # that was NOT created by ACK and therefore has no ChangeInfo ID)
+        route53_client.change_resource_record_sets(
+            HostedZoneId=parsed_zone_id,
+            ChangeBatch={
+                "Changes": [
+                    {
+                        "Action": "CREATE",
+                        "ResourceRecordSet": {
+                            "Name": full_dns_name,
+                            "Type": "A",
+                            "TTL": 300,
+                            "ResourceRecords": [{"Value": ip_address}],
+                        },
+                    }
+                ]
+            },
+        )
+
+        ref = None
+        try:
+            # Step 2: Adopt it using 'adopt' policy + adoption-fields with NO 'id' field.
+            # This is the exact CX scenario: hostedZoneID + name + recordType only.
+            adopt_record_name = random_suffix_name("adopt-no-id", 32)
+            replacements = REPLACEMENT_VALUES.copy()
+            replacements["ADOPT_RECORD_NAME"] = adopt_record_name
+            replacements["ADOPT_RECORD_DNS_NAME"] = record_dns_name
+            replacements["HOSTED_ZONE_ID"] = parsed_zone_id
+            replacements["RECORD_TYPE"] = "A"
+            replacements["IP_ADDR"] = ip_address
+
+            resource_data = load_eks_resource(
+                "record_set_adopt_no_id",
+                additional_replacements=replacements,
+            )
+
+            ref = k8s.CustomResourceReference(
+                CRD_GROUP, CRD_VERSION, "recordsets",
+                adopt_record_name, namespace="default",
+            )
+            k8s.create_custom_resource(ref, resource_data)
+            cr = k8s.wait_resource_consumed_by_controller(ref)
+            assert cr is not None
+
+            # Step 3: Assert ACK.ResourceSynced=True (fix) or confirm ACK.Terminal=True (bug).
+            # With the fix, adoption succeeds and Status.ID is nil (no ChangeInfo).
+            # Without the fix, the controller sets ACK.Terminal=True with error:
+            #   "required field missing: id"
+            assert k8s.wait_on_condition(ref, "ACK.ResourceSynced", "True", wait_periods=10), \
+                "Expected ACK.ResourceSynced=True after adoption without id field. " \
+                "If ACK.Terminal=True with 'required field missing: id', the fix is not applied."
+
+            # Verify Status.ID is nil — adoption of pre-existing records has no ChangeInfo ID
+            record = get_route53_resource(ref)
+            assert record["status"].get("id") is None, \
+                f"Expected Status.ID to be nil for adopted record, got: {record['status'].get('id')}"
+        finally:
+            # Step 4: Clean up both the K8s CR and the AWS record
+            if ref is not None:
+                delete_route53_resource(ref)
+
+            # Ensure the AWS record is removed even if the K8s delete fails
+            try:
+                route53_client.change_resource_record_sets(
+                    HostedZoneId=parsed_zone_id,
+                    ChangeBatch={
+                        "Changes": [
+                            {
+                                "Action": "DELETE",
+                                "ResourceRecordSet": {
+                                    "Name": full_dns_name,
+                                    "Type": "A",
+                                    "TTL": 300,
+                                    "ResourceRecords": [{"Value": ip_address}],
+                                },
+                            }
+                        ]
+                    },
+                )
+            except route53_client.exceptions.InvalidChangeBatch:
+                # Record already deleted by the controller
+                pass
