@@ -162,6 +162,19 @@ func (rm *resourceManager) sdkFind(
 			VPCRegion: &region,
 		})
 	}
+	// Validate spec.name matches the actual hosted zone name returned by AWS.
+	// Zone names are immutable in Route53 — a mismatch during adoption means
+	// the user pointed the wrong zone ID at this CR. Return a terminal error
+	// so the mismatch is visible in status.conditions rather than silently ignored.
+	if r.ko.Spec.Name != nil && ko.Spec.Name != nil {
+		if *r.ko.Spec.Name != *ko.Spec.Name {
+			return nil, ackerr.NewTerminalError(fmt.Errorf(
+				"spec.name %q does not match hosted zone name %q: "+
+					"correct spec.name to match the actual zone name",
+				*r.ko.Spec.Name, *ko.Spec.Name,
+			))
+		}
+	}
 	return &resource{ko}, nil
 }
 
