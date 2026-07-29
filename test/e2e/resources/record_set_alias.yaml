@@ -1,0 +1,12 @@
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: RecordSet
+metadata:
+  name: $ALIAS_RECORD_NAME
+spec:
+  name: $ALIAS_RECORD_DNS_NAME
+  hostedZoneID: $HOSTED_ZONE_ID
+  recordType: A
+  aliasTarget:
+    dnsName: $TARGET_DNS_NAME
+    hostedZoneID: $TARGET_HOSTED_ZONE_ID
+    evaluateTargetHealth: false

@@ -41,6 +41,7 @@ func newResourceDelta(
 		delta.Add("", a, b)
 		return delta
 	}
+	customPreCompare(delta, a, b)
 
 	if ackcompare.HasNilDifference(a.ko.Spec.AliasTarget, b.ko.Spec.AliasTarget) {
 		delta.Add("Spec.AliasTarget", a.ko.Spec.AliasTarget, b.ko.Spec.AliasTarget)
