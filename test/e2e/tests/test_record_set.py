@@ -18,6 +18,7 @@ import pytest
 import random
 import socket
 import struct
+import subprocess
 import time
 
 from acktest.k8s import resource as k8s
@@ -337,3 +338,130 @@ class TestRecordSet:
             except route53_client.exceptions.InvalidChangeBatch:
                 # Record already deleted by the controller
                 pass
+
+
+# Controller namespace and deployment name constants for log inspection
+ACK_NAMESPACE = "ack-route53-system"
+ACK_DEPLOYMENT = "ack-route53-controller-route53-chart"
+ACK_CONTROLLER_LABEL = "app.kubernetes.io/name=route53-chart"
+
+# Wait time for verifying no perpetual updates (seconds)
+ALIAS_IDLE_WAIT = 90
+# Maximum ChangeResourceRecordSets calls allowed after initial create when fix is applied
+FIX_MAX_CALLS = 1
+
+
+def _count_change_rrs_calls(since_seconds=120):
+    """Count ChangeResourceRecordSets log entries in the controller logs."""
+    cmd = [
+        "kubectl", "logs",
+        "-n", ACK_NAMESPACE,
+        "-l", ACK_CONTROLLER_LABEL,
+        f"--since={since_seconds}s",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return result.stdout.count("ChangeResourceRecordSets")
+
+
+@service_marker
+class TestRecordSetAlias:
+    """Tests that validate correct handling of alias record sets.
+
+    Regression test for the perpetual-update-loop bug where Route53 returns
+    AliasTarget.DNSName with a trailing dot and AliasTarget.HostedZoneID with
+    a /hostedzone/ prefix.  Without normalization the delta comparison always
+    detects a difference and calls ChangeResourceRecordSets on every reconcile.
+
+    With the fix (customPreCompare in hooks.go) both sides are normalised
+    before comparison so no spurious delta is found.
+    """
+
+    def test_alias_record_no_perpetual_updates(self, route53_client, private_hosted_zone):
+        """Verify that an alias A record does not trigger repeated ChangeResourceRecordSets
+        calls after the initial create.
+
+        Steps
+        -----
+        1. Create a base A record (the alias target).
+        2. Create an alias A record pointing to the base record.
+           The spec uses the zone ID WITHOUT the /hostedzone/ prefix and the
+           DNS name WITHOUT a trailing dot, exactly as a user would write it.
+        3. After both resources reach Synced=True, wait ALIAS_IDLE_WAIT seconds.
+        4. Count ChangeResourceRecordSets calls in that window.
+           With the fix there must be at most FIX_MAX_CALLS (the initial create).
+        5. Clean up both records.
+        """
+        zone_id, domain = private_hosted_zone
+        parsed_zone_id = zone_id.split("/")[-1]
+
+        base_record_name = random_suffix_name("alias-base", 32)
+        alias_record_name = random_suffix_name("alias-target", 32)
+
+        base_ref = None
+        alias_ref = None
+
+        try:
+            # Step 1: create a base A record that the alias will point to
+            base_replacements = REPLACEMENT_VALUES.copy()
+            base_replacements["BASE_RECORD_NAME"] = base_record_name
+            base_replacements["BASE_RECORD_DNS_NAME"] = base_record_name
+            base_replacements["HOSTED_ZONE_ID"] = parsed_zone_id
+            base_replacements["IP_ADDR"] = "1.2.3.4"
+
+            base_ref, base_cr = create_route53_resource(
+                "recordsets",
+                base_record_name,
+                "record_set_a_simple",
+                base_replacements,
+            )
+
+            assert k8s.wait_on_condition(base_ref, "ACK.ResourceSynced", "True", wait_periods=10), \
+                "Base A record did not reach ACK.ResourceSynced=True"
+
+            # Construct the alias target DNS name as a user would: no trailing dot
+            # domain already contains the trailing dot (e.g. "zone.ack.example.com.")
+            zone_domain = domain.rstrip(".")
+            alias_dns_target = f"{base_record_name}.{zone_domain}"
+
+            # Step 2: create the alias record pointing to the base record
+            # hostedZoneID and dnsName are specified WITHOUT /hostedzone/ prefix / trailing dot
+            alias_replacements = REPLACEMENT_VALUES.copy()
+            alias_replacements["ALIAS_RECORD_NAME"] = alias_record_name
+            alias_replacements["ALIAS_RECORD_DNS_NAME"] = alias_record_name
+            alias_replacements["HOSTED_ZONE_ID"] = parsed_zone_id
+            alias_replacements["TARGET_DNS_NAME"] = alias_dns_target
+            alias_replacements["TARGET_HOSTED_ZONE_ID"] = parsed_zone_id
+
+            alias_ref, alias_cr = create_route53_resource(
+                "recordsets",
+                alias_record_name,
+                "record_set_alias",
+                alias_replacements,
+            )
+
+            assert k8s.wait_on_condition(alias_ref, "ACK.ResourceSynced", "True", wait_periods=10), \
+                "Alias A record did not reach ACK.ResourceSynced=True"
+
+            # Step 3: wait to observe whether spurious updates are triggered
+            time.sleep(ALIAS_IDLE_WAIT)
+
+            # Step 4: count ChangeResourceRecordSets calls in the observation window
+            call_count = _count_change_rrs_calls(since_seconds=ALIAS_IDLE_WAIT + 30)
+
+            # With the fix, only the initial create call should have fired.
+            # A perpetual update loop would produce many more calls.
+            assert call_count <= FIX_MAX_CALLS, (
+                f"Perpetual update loop detected: {call_count} ChangeResourceRecordSets calls "
+                f"observed in {ALIAS_IDLE_WAIT}s (max allowed: {FIX_MAX_CALLS}). "
+                "The alias record normalization fix may not be active."
+            )
+
+            # Verify the alias record is still synced (not stuck in error)
+            assert k8s.wait_on_condition(alias_ref, "ACK.ResourceSynced", "True", wait_periods=5), \
+                "Alias A record lost ACK.ResourceSynced=True after idle period"
+
+        finally:
+            if alias_ref is not None:
+                delete_route53_resource(alias_ref)
+            if base_ref is not None:
+                delete_route53_resource(base_ref)
