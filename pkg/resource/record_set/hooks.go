@@ -265,6 +265,17 @@ func (rm *resourceManager) syncStatus(
 		return nil
 	}
 
+	// INSYNC is a terminal state for a change batch: once a change has fully
+	// propagated to all Route 53 authoritative DNS servers it never reverts to
+	// PENDING. Since the change ID is persisted on the CR status and is never
+	// cleared, re-polling GetChange on every reconcile would issue an unbounded
+	// stream of calls against the same long-settled change ID. Short-circuit
+	// here so we stop polling once the change is INSYNC.
+	if ko.Status.Status != nil &&
+		svcsdktypes.ChangeStatus(*ko.Status.Status) == svcsdktypes.ChangeStatusInsync {
+		return nil
+	}
+
 	changeInput := &svcsdk.GetChangeInput{}
 	changeInput.Id = ko.Status.ID
 
