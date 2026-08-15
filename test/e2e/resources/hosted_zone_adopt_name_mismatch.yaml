@@ -1,0 +1,9 @@
+apiVersion: route53.services.k8s.aws/v1alpha1
+kind: HostedZone
+metadata:
+  name: $ZONE_NAME
+  annotations:
+    services.k8s.aws/adoption-policy: adopt
+    services.k8s.aws/adoption-fields: '{"id": "$ZONE_ID"}'
+spec:
+  name: $WRONG_ZONE_DOMAIN
