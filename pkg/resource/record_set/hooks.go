@@ -13,9 +13,38 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	svcsdk "github.com/aws/aws-sdk-go-v2/service/route53"
 	svcsdktypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	smithy "github.com/aws/smithy-go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// demoteTransientChangeBatchError downgrades the two transient
+// InvalidChangeBatch failures from #2754 (record already exists out of band, or
+// the alias target is not yet present) from terminal to a recoverable error, so
+// the controller keeps reconciling with exponential backoff instead of latching
+// ACK.Terminal until a pod restart. Route53 reuses this code for
+// genuinely-invalid batches too, so we match on message and leave every other
+// InvalidChangeBatch terminal. The returned error deliberately carries only the
+// message text (not the wrapped APIError): terminalAWSError unwraps via
+// errors.As to the smithy InvalidChangeBatch code, so wrapping would stay
+// terminal; a plain error breaks that chain and becomes recoverable.
+func demoteTransientChangeBatchError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var apiErr smithy.APIError
+	if !errors.As(err, &apiErr) || apiErr.ErrorCode() != "InvalidChangeBatch" {
+		return err
+	}
+	msg := strings.ToLower(apiErr.ErrorMessage())
+	// Only the transient shapes from #2754 are reclassified; anything else
+	// under InvalidChangeBatch remains terminal.
+	if strings.Contains(msg, "already exists") ||
+		strings.Contains(msg, "alias target") {
+		return errors.New(apiErr.ErrorMessage())
+	}
+	return err
+}
 
 // newResourceRecords returns a slice of ResourceRecord pointer objects
 // with values set by the resource's corresponding spec field.
@@ -211,7 +240,9 @@ func (rm *resourceManager) customUpdateRecordSet(
 		ko.Status.ID = nil
 		ko.Status.Status = nil
 		ko.Status.SubmittedAt = nil
-		return &resource{ko}, err
+		// Downgrade transient InvalidChangeBatch failures to recoverable so the
+		// controller backs off exponentially instead of going terminal (community#2754).
+		return &resource{ko}, demoteTransientChangeBatchError(err)
 	}
 
 	if resp.ChangeInfo.Id != nil {

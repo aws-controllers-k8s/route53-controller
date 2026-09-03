@@ -357,6 +357,11 @@ func (rm *resourceManager) sdkCreate(
 	var resp *svcsdk.ChangeResourceRecordSetsOutput
 	_ = resp
 	resp, err = rm.sdkapi.ChangeResourceRecordSets(ctx, input)
+
+	// Downgrade transient InvalidChangeBatch failures to recoverable so the
+	// controller backs off exponentially instead of going terminal (community#2754).
+	err = demoteTransientChangeBatchError(err)
+
 	rm.metrics.RecordAPICall("CREATE", "ChangeResourceRecordSets", err)
 	if err != nil {
 		return nil, err
