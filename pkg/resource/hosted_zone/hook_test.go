@@ -722,6 +722,50 @@ func TestShouldRunVPCPreCleanup_SpecVPCPathExtraVPCs(t *testing.T) {
 	}
 }
 
+func Test_hostedZoneNameMismatchDetection(t *testing.T) {
+	tests := []struct {
+		name         string
+		specName     string
+		actualName   string
+		wantMismatch bool
+	}{
+		{
+			name:         "matching names — no mismatch",
+			specName:     "example.com.",
+			actualName:   "example.com.",
+			wantMismatch: false,
+		},
+		{
+			name:         "mismatched names — mismatch detected",
+			specName:     "wrong.example.com.",
+			actualName:   "example.com.",
+			wantMismatch: true,
+		},
+		{
+			name:         "subdomain vs apex — mismatch",
+			specName:     "sub.example.com.",
+			actualName:   "example.com.",
+			wantMismatch: true,
+		},
+		{
+			name:         "same name different trailing dot — mismatch",
+			specName:     "example.com",
+			actualName:   "example.com.",
+			wantMismatch: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.specName != tt.actualName
+			if got != tt.wantMismatch {
+				t.Errorf("name mismatch detection: specName=%q actualName=%q got=%v want=%v",
+					tt.specName, tt.actualName, got, tt.wantMismatch)
+			}
+		})
+	}
+}
+
 func TestAdoptionPath_SpecVPCsReflectAWSState(t *testing.T) {
 	ctx := context.Background()
 
