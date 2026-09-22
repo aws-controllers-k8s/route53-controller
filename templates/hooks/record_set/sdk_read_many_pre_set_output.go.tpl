@@ -45,10 +45,12 @@
 		}
 
 		// Similar to above, remove the "." at the end and decode the "*" value as necessary.
+		// Trim only an actual trailing dot: slicing off the last byte unconditionally
+		// corrupts an already-unqualified name and panics on an empty one.
 		if elem.AliasTarget != nil && ko.Spec.AliasTarget != nil {
 			if elem.AliasTarget.DNSName != nil && ko.Spec.AliasTarget.DNSName != nil {
-				dnsName = *elem.AliasTarget.DNSName
-				decodedName := decodeRecordName(dnsName[:len(dnsName)-1])
+				dnsName = strings.TrimSuffix(*elem.AliasTarget.DNSName, ".")
+				decodedName := decodeRecordName(dnsName)
 				elem.AliasTarget.DNSName = &decodedName
 			}
 		}

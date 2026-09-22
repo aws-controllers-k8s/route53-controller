@@ -57,6 +57,10 @@ resources:
         from:
           operation: ListResourceRecordSets
           path: ResourceRecordSets.AliasTarget
+        # Compared in customPreCompare, which normalizes the forms Route53
+        # canonicalizes on read-back (community#2982, community#2987).
+        compare:
+          is_ignored: true
       # This field cannot be ignored, but values for this will be overriden and should not be used
       CidrRoutingConfig:
         from:
@@ -131,6 +135,8 @@ resources:
           operation: ListResourceRecordSets
           path: ResourceRecordSets.Weight
     hooks:
+      delta_pre_compare:
+        code: customPreCompare(delta, a, b)
       sdk_create_post_build_request:
         template_path: hooks/record_set/sdk_create_post_build_request.go.tpl
       sdk_create_post_request:

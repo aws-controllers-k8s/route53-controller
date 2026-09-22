@@ -41,32 +41,8 @@ func newResourceDelta(
 		delta.Add("", a, b)
 		return delta
 	}
+	customPreCompare(delta, a, b)
 
-	if ackcompare.HasNilDifference(a.ko.Spec.AliasTarget, b.ko.Spec.AliasTarget) {
-		delta.Add("Spec.AliasTarget", a.ko.Spec.AliasTarget, b.ko.Spec.AliasTarget)
-	} else if a.ko.Spec.AliasTarget != nil && b.ko.Spec.AliasTarget != nil {
-		if ackcompare.HasNilDifference(a.ko.Spec.AliasTarget.DNSName, b.ko.Spec.AliasTarget.DNSName) {
-			delta.Add("Spec.AliasTarget.DNSName", a.ko.Spec.AliasTarget.DNSName, b.ko.Spec.AliasTarget.DNSName)
-		} else if a.ko.Spec.AliasTarget.DNSName != nil && b.ko.Spec.AliasTarget.DNSName != nil {
-			if *a.ko.Spec.AliasTarget.DNSName != *b.ko.Spec.AliasTarget.DNSName {
-				delta.Add("Spec.AliasTarget.DNSName", a.ko.Spec.AliasTarget.DNSName, b.ko.Spec.AliasTarget.DNSName)
-			}
-		}
-		if ackcompare.HasNilDifference(a.ko.Spec.AliasTarget.EvaluateTargetHealth, b.ko.Spec.AliasTarget.EvaluateTargetHealth) {
-			delta.Add("Spec.AliasTarget.EvaluateTargetHealth", a.ko.Spec.AliasTarget.EvaluateTargetHealth, b.ko.Spec.AliasTarget.EvaluateTargetHealth)
-		} else if a.ko.Spec.AliasTarget.EvaluateTargetHealth != nil && b.ko.Spec.AliasTarget.EvaluateTargetHealth != nil {
-			if *a.ko.Spec.AliasTarget.EvaluateTargetHealth != *b.ko.Spec.AliasTarget.EvaluateTargetHealth {
-				delta.Add("Spec.AliasTarget.EvaluateTargetHealth", a.ko.Spec.AliasTarget.EvaluateTargetHealth, b.ko.Spec.AliasTarget.EvaluateTargetHealth)
-			}
-		}
-		if ackcompare.HasNilDifference(a.ko.Spec.AliasTarget.HostedZoneID, b.ko.Spec.AliasTarget.HostedZoneID) {
-			delta.Add("Spec.AliasTarget.HostedZoneID", a.ko.Spec.AliasTarget.HostedZoneID, b.ko.Spec.AliasTarget.HostedZoneID)
-		} else if a.ko.Spec.AliasTarget.HostedZoneID != nil && b.ko.Spec.AliasTarget.HostedZoneID != nil {
-			if *a.ko.Spec.AliasTarget.HostedZoneID != *b.ko.Spec.AliasTarget.HostedZoneID {
-				delta.Add("Spec.AliasTarget.HostedZoneID", a.ko.Spec.AliasTarget.HostedZoneID, b.ko.Spec.AliasTarget.HostedZoneID)
-			}
-		}
-	}
 	if ackcompare.HasNilDifference(a.ko.Spec.CIDRRoutingConfig, b.ko.Spec.CIDRRoutingConfig) {
 		delta.Add("Spec.CIDRRoutingConfig", a.ko.Spec.CIDRRoutingConfig, b.ko.Spec.CIDRRoutingConfig)
 	} else if a.ko.Spec.CIDRRoutingConfig != nil && b.ko.Spec.CIDRRoutingConfig != nil {

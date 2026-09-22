@@ -380,3 +380,68 @@ func decodeRecordName(name string) string {
 	}
 	return name
 }
+
+// hostedZoneIDPrefix is the prefix Route53 attaches to hosted zone IDs.
+const hostedZoneIDPrefix = "/hostedzone/"
+
+// normalizeAliasDNSName returns the comparable form of an alias target DNS
+// name: unqualified and lower case, since DNS names are case insensitive.
+func normalizeAliasDNSName(dnsName string) string {
+	return strings.ToLower(strings.TrimSuffix(dnsName, "."))
+}
+
+// normalizeAliasHostedZoneID returns the comparable form of an alias target
+// hosted zone ID: the bare ID, without the "/hostedzone/" prefix.
+func normalizeAliasHostedZoneID(hostedZoneID string) string {
+	return strings.TrimPrefix(hostedZoneID, hostedZoneIDPrefix)
+}
+
+// customPreCompare compares Spec.AliasTarget, which is excluded from the
+// generated delta via compare.is_ignored. Route53 canonicalizes the alias
+// target on read-back, so comparing the raw spec values never converges and
+// UPSERTs the record on every reconcile (community#2982, community#2987).
+func customPreCompare(
+	delta *ackcompare.Delta,
+	a *resource,
+	b *resource,
+) {
+	compareAliasTarget(delta, a.ko.Spec.AliasTarget, b.ko.Spec.AliasTarget)
+}
+
+// compareAliasTarget compares two alias targets on their normalized values.
+// The normalized forms are computed into locals: the two resources passed to
+// the delta are the merge patch base and the object persisted back to the CR
+// spec, so neither may be mutated here.
+func compareAliasTarget(
+	delta *ackcompare.Delta,
+	a *svcapitypes.AliasTarget,
+	b *svcapitypes.AliasTarget,
+) {
+	if ackcompare.HasNilDifference(a, b) {
+		delta.Add("Spec.AliasTarget", a, b)
+		return
+	}
+	if a == nil || b == nil {
+		return
+	}
+
+	if ackcompare.HasNilDifference(a.DNSName, b.DNSName) {
+		delta.Add("Spec.AliasTarget.DNSName", a.DNSName, b.DNSName)
+	} else if a.DNSName != nil && b.DNSName != nil &&
+		normalizeAliasDNSName(*a.DNSName) != normalizeAliasDNSName(*b.DNSName) {
+		delta.Add("Spec.AliasTarget.DNSName", a.DNSName, b.DNSName)
+	}
+
+	// Route53 always reports EvaluateTargetHealth, so an unset spec value has
+	// to compare equal to false or the delta never empties.
+	if aws.ToBool(a.EvaluateTargetHealth) != aws.ToBool(b.EvaluateTargetHealth) {
+		delta.Add("Spec.AliasTarget.EvaluateTargetHealth", a.EvaluateTargetHealth, b.EvaluateTargetHealth)
+	}
+
+	if ackcompare.HasNilDifference(a.HostedZoneID, b.HostedZoneID) {
+		delta.Add("Spec.AliasTarget.HostedZoneID", a.HostedZoneID, b.HostedZoneID)
+	} else if a.HostedZoneID != nil && b.HostedZoneID != nil &&
+		normalizeAliasHostedZoneID(*a.HostedZoneID) != normalizeAliasHostedZoneID(*b.HostedZoneID) {
+		delta.Add("Spec.AliasTarget.HostedZoneID", a.HostedZoneID, b.HostedZoneID)
+	}
+}
