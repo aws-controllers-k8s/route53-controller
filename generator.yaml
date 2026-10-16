@@ -167,6 +167,8 @@ resources:
     fields:
       Name:
         is_immutable: true
+        compare:
+          is_ignored: true
       DelegationSetID:
         is_immutable: true
       HostedZoneConfig.PrivateZone:
@@ -193,6 +195,7 @@ resources:
           compareTags(delta, a, b)
           compareVPCs(delta, a, b)
           compareVPC(delta, a, b)
+          compareName(delta, a, b)
       sdk_delete_pre_build_request:
         template_path: hooks/hosted_zone/sdk_delete_pre_build_request.go.tpl
       sdk_read_one_post_set_output:

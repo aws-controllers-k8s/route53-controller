@@ -447,3 +447,21 @@ func (rm *resourceManager) syncVPCAssociations(
 
 	return nil
 }
+
+// compareName compares Spec.Name ignoring the trailing dot Route53 appends.
+func compareName(
+	delta *ackcompare.Delta,
+	a *resource,
+	b *resource,
+) {
+	if ackcompare.HasNilDifference(a.ko.Spec.Name, b.ko.Spec.Name) {
+		delta.Add("Spec.Name", a.ko.Spec.Name, b.ko.Spec.Name)
+		return
+	}
+	if a.ko.Spec.Name == nil {
+		return
+	}
+	if strings.TrimSuffix(*a.ko.Spec.Name, ".") != strings.TrimSuffix(*b.ko.Spec.Name, ".") {
+		delta.Add("Spec.Name", a.ko.Spec.Name, b.ko.Spec.Name)
+	}
+}
