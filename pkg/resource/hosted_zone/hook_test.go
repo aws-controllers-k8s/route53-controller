@@ -780,3 +780,31 @@ func TestAdoptionPath_SpecVPCsReflectAWSState(t *testing.T) {
 		}
 	})
 }
+
+func TestCompareName(t *testing.T) {
+	tests := []struct {
+		name      string
+		a, b      *string
+		wantDelta bool
+	}{
+		{"both nil", nil, nil, false},
+		{"equal", aws.String("example.com"), aws.String("example.com"), false},
+		{"trailing dot on latest", aws.String("example.com"), aws.String("example.com."), false},
+		{"trailing dot on desired", aws.String("example.com."), aws.String("example.com"), false},
+		{"different names", aws.String("example.com"), aws.String("example.org."), true},
+		{"nil difference", aws.String("example.com"), nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &resource{ko: &svcapitypes.HostedZone{}}
+			b := &resource{ko: &svcapitypes.HostedZone{}}
+			a.ko.Spec.Name = tt.a
+			b.ko.Spec.Name = tt.b
+			delta := ackcompare.NewDelta()
+			compareName(delta, a, b)
+			if got := delta.DifferentAt("Spec.Name"); got != tt.wantDelta {
+				t.Errorf("DifferentAt(Spec.Name) = %v, want %v", got, tt.wantDelta)
+			}
+		})
+	}
+}
