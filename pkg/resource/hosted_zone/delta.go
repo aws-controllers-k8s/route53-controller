@@ -43,6 +43,7 @@ func newResourceDelta(
 	compareTags(delta, a, b)
 	compareVPCs(delta, a, b)
 	compareVPC(delta, a, b)
+	compareName(delta, a, b)
 
 	if ackcompare.HasNilDifference(a.ko.Spec.DelegationSetID, b.ko.Spec.DelegationSetID) {
 		delta.Add("Spec.DelegationSetID", a.ko.Spec.DelegationSetID, b.ko.Spec.DelegationSetID)
@@ -67,13 +68,6 @@ func newResourceDelta(
 			if *a.ko.Spec.HostedZoneConfig.PrivateZone != *b.ko.Spec.HostedZoneConfig.PrivateZone {
 				delta.Add("Spec.HostedZoneConfig.PrivateZone", a.ko.Spec.HostedZoneConfig.PrivateZone, b.ko.Spec.HostedZoneConfig.PrivateZone)
 			}
-		}
-	}
-	if ackcompare.HasNilDifference(a.ko.Spec.Name, b.ko.Spec.Name) {
-		delta.Add("Spec.Name", a.ko.Spec.Name, b.ko.Spec.Name)
-	} else if a.ko.Spec.Name != nil && b.ko.Spec.Name != nil {
-		if *a.ko.Spec.Name != *b.ko.Spec.Name {
-			delta.Add("Spec.Name", a.ko.Spec.Name, b.ko.Spec.Name)
 		}
 	}
 	if ackcompare.HasNilDifference(a.ko.Spec.VPC, b.ko.Spec.VPC) {
